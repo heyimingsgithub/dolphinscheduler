@@ -133,6 +133,8 @@ export default {
         state.version = res.data.processDefinition.version
         // name
         state.name = res.data.processDefinition.name
+        // releaseState
+        state.releaseState = res.data.processDefinition.releaseState
         // description
         state.description = res.data.processDefinition.description
         // taskRelationJson
@@ -143,6 +145,8 @@ export default {
         state.globalParams = res.data.processDefinition.globalParamList
         // timeout
         state.timeout = res.data.processDefinition.timeout
+        // executionType
+        state.executionType = res.data.processDefinition.executionType
         // tenantCode
         state.tenantCode = res.data.processDefinition.tenantCode || 'default'
         // tasks info
@@ -164,6 +168,7 @@ export default {
           'timeout',
           'environmentCode'
         ]))
+
         resolve(res.data)
       }).catch(res => {
         reject(res)
@@ -240,6 +245,8 @@ export default {
         state.globalParams = processDefinition.globalParamList
         // timeout
         state.timeout = processDefinition.timeout
+        // executionType
+        state.executionType = processDefinition.executionType
         // tenantCode
         state.tenantCode = res.data.tenantCode || 'default'
         // tasks info
@@ -282,6 +289,7 @@ export default {
         taskDefinitionJson: JSON.stringify(state.tasks),
         taskRelationJson: JSON.stringify(state.connects),
         tenantCode: state.tenantCode,
+        executionType: state.executionType,
         description: _.trim(state.description),
         globalParams: JSON.stringify(state.globalParams),
         timeout: state.timeout
@@ -303,6 +311,7 @@ export default {
         taskDefinitionJson: JSON.stringify(state.tasks),
         taskRelationJson: JSON.stringify(state.connects),
         tenantCode: state.tenantCode,
+        executionType: state.executionType,
         description: _.trim(state.description),
         globalParams: JSON.stringify(state.globalParams),
         timeout: state.timeout,
@@ -345,7 +354,7 @@ export default {
         resolve()
         return
       }
-      io.get(`projects/${state.projectCode}/process-definition/list`, payload, res => {
+      io.get(`projects/${state.projectCode}/process-definition/simple-list`, payload, res => {
         state.processListS = res.data
         resolve(res.data)
       }).catch(res => {
@@ -829,10 +838,50 @@ export default {
       })
     })
   },
-  getTaskDefinitions ({ state }, payload) {
+  /**
+   * Query Task Definitions List Paging
+   */
+  getTaskDefinitionsList ({ state }, payload) {
     return new Promise((resolve, reject) => {
       io.get(`projects/${state.projectCode}/task-definition`, payload, res => {
         resolve(res.data)
+      }).catch(e => {
+        reject(e)
+      })
+    })
+  },
+  /**
+   * Delete Task Definition by code
+   */
+  deleteTaskDefinition ({ state }, payload) {
+    return new Promise((resolve, reject) => {
+      io.delete(`projects/${state.projectCode}/task-definition/${payload.code}`, payload, res => {
+        resolve(res)
+      }).catch(e => {
+        reject(e)
+      })
+    })
+  },
+  /**
+   * Save Task Definition
+   */
+  saveTaskDefinition ({ state }, payload) {
+    return new Promise((resolve, reject) => {
+      io.post(`projects/${state.projectCode}/task-definition`, {
+        taskDefinitionJson: JSON.stringify(payload.taskDefinitionJson)
+      }, res => {
+        resolve(res)
+      }).catch(e => {
+        reject(e)
+      })
+    })
+  },
+  updateTaskDefinition ({ state }, taskDefinition) {
+    return new Promise((resolve, reject) => {
+      io.put(`projects/${state.projectCode}/task-definition/${taskDefinition.code}`, {
+        taskDefinitionJsonObj: JSON.stringify(taskDefinition)
+      }, res => {
+        resolve(res)
       }).catch(e => {
         reject(e)
       })
