@@ -17,13 +17,16 @@
 
 package org.apache.dolphinscheduler.dao.mapper;
 
+import org.apache.dolphinscheduler.common.enums.TaskExecuteType;
 import org.apache.dolphinscheduler.dao.entity.DefinitionGroupByUser;
 import org.apache.dolphinscheduler.dao.entity.TaskDefinition;
 import org.apache.dolphinscheduler.dao.entity.TaskDefinitionLog;
+import org.apache.dolphinscheduler.dao.entity.TaskMainInfo;
 
 import org.apache.ibatis.annotations.MapKey;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -39,10 +42,12 @@ public interface TaskDefinitionMapper extends BaseMapper<TaskDefinition> {
      * query task definition by name
      *
      * @param projectCode projectCode
+     * @param processCode processCode
      * @param name name
      * @return task definition
      */
     TaskDefinition queryByName(@Param("projectCode") long projectCode,
+                               @Param("processCode") long processCode,
                                @Param("name") String name);
 
     /**
@@ -102,20 +107,28 @@ public interface TaskDefinitionMapper extends BaseMapper<TaskDefinition> {
     int batchInsert(@Param("taskDefinitions") List<TaskDefinitionLog> taskDefinitions);
 
     /**
-     * task definition page
+     * task main info page
      *
      * @param page page
-     * @param taskType taskType
-     * @param searchVal searchVal
-     * @param userId userId
      * @param projectCode projectCode
-     * @param isAdmin isAdmin
-     * @return task definition IPage
+     * @param searchWorkflowName searchWorkflowName
+     * @param searchTaskName searchTaskName
+     * @param taskType taskType
+     * @param taskExecuteType taskExecuteType
+     * @return task main info IPage
      */
-    IPage<TaskDefinition> queryDefineListPaging(IPage<TaskDefinition> page,
-                                                @Param("projectCode") long projectCode,
-                                                @Param("taskType") String taskType,
-                                                @Param("searchVal") String searchVal,
-                                                @Param("userId") int userId,
-                                                @Param("isAdmin") boolean isAdmin);
+    IPage<TaskMainInfo> queryDefineListPaging(IPage<TaskMainInfo> page,
+                                              @Param("projectCode") long projectCode,
+                                              @Param("searchWorkflowName") String searchWorkflowName,
+                                              @Param("searchTaskName") String searchTaskName,
+                                              @Param("taskType") String taskType,
+                                              @Param("taskExecuteType")TaskExecuteType taskExecuteType);
+
+    /**
+     * query task definition by code list
+     *
+     * @param codes taskDefinitionCode list
+     * @return task definition list
+     */
+    List<TaskDefinition> queryByCodeList(@Param("codes") Collection<Long> codes);
 }

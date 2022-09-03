@@ -23,8 +23,8 @@ import org.apache.dolphinscheduler.api.service.LoggerService;
 import org.apache.dolphinscheduler.api.service.ProjectService;
 import org.apache.dolphinscheduler.api.utils.Result;
 import org.apache.dolphinscheduler.common.Constants;
-import org.apache.dolphinscheduler.common.utils.PropertyUtils;
 import org.apache.dolphinscheduler.dao.entity.Project;
+import org.apache.dolphinscheduler.dao.entity.ResponseTaskLog;
 import org.apache.dolphinscheduler.dao.entity.TaskDefinition;
 import org.apache.dolphinscheduler.dao.entity.TaskInstance;
 import org.apache.dolphinscheduler.dao.entity.User;
@@ -34,7 +34,7 @@ import org.apache.dolphinscheduler.remote.utils.Host;
 import org.apache.dolphinscheduler.service.log.LogClientService;
 import org.apache.dolphinscheduler.service.process.ProcessService;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -49,6 +49,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.google.common.primitives.Bytes;
+
+import static org.apache.dolphinscheduler.api.constants.ApiFuncIdentificationConstant.DOWNLOAD_LOG;
+import static org.apache.dolphinscheduler.api.constants.ApiFuncIdentificationConstant.VIEW_LOG;
 
 /**
  * logger service impl
@@ -98,16 +101,20 @@ public class LoggerServiceImpl extends BaseServiceImpl implements LoggerService 
      */
     @Override
     @SuppressWarnings("unchecked")
-    public Result<String> queryLog(int taskInstId, int skipLineNum, int limit) {
+    public Result<ResponseTaskLog> queryLog(int taskInstId, int skipLineNum, int limit) {
 
         TaskInstance taskInstance = processService.findTaskInstanceById(taskInstId);
 
-        if (taskInstance == null || StringUtils.isBlank(taskInstance.getHost())) {
+        if (taskInstance == null) {
             return Result.error(Status.TASK_INSTANCE_NOT_FOUND);
         }
-        Result<String> result = new Result<>(Status.SUCCESS.getCode(), Status.SUCCESS.getMsg());
-        String log = queryLog(taskInstance,skipLineNum,limit);
-        result.setData(log);
+        if (StringUtils.isBlank(taskInstance.getHost())) {
+            return Result.error(Status.TASK_INSTANCE_HOST_IS_NULL);
+        }
+        Result<ResponseTaskLog> result = new Result<>(Status.SUCCESS.getCode(), Status.SUCCESS.getMsg());
+        String log = queryLog(taskInstance, skipLineNum, limit);
+        int lineNum = log.split("\\r\\n").length;
+        result.setData(new ResponseTaskLog(lineNum, log));
         return result;
     }
 
@@ -142,7 +149,7 @@ public class LoggerServiceImpl extends BaseServiceImpl implements LoggerService 
     public Map<String, Object> queryLog(User loginUser, long projectCode, int taskInstId, int skipLineNum, int limit) {
         Project project = projectMapper.queryByCode(projectCode);
         //check user access for project
-        Map<String, Object> result = projectService.checkProjectAndAuth(loginUser, project, projectCode);
+        Map<String, Object> result = projectService.checkProjectAndAuth(loginUser, project, projectCode, VIEW_LOG);
         if (result.get(Constants.STATUS) != Status.SUCCESS) {
             return result;
         }
@@ -175,7 +182,7 @@ public class LoggerServiceImpl extends BaseServiceImpl implements LoggerService 
     public byte[] getLogBytes(User loginUser, long projectCode, int taskInstId) {
         Project project = projectMapper.queryByCode(projectCode);
         //check user access for project
-        Map<String, Object> result = projectService.checkProjectAndAuth(loginUser, project, projectCode);
+        Map<String, Object> result = projectService.checkProjectAndAuth(loginUser, project, projectCode,DOWNLOAD_LOG);
         if (result.get(Constants.STATUS) != Status.SUCCESS) {
             throw new ServiceException("user has no permission");
         }
@@ -193,19 +200,6 @@ public class LoggerServiceImpl extends BaseServiceImpl implements LoggerService 
     }
 
     /**
-     * get host
-     *
-     * @param address address
-     * @return old version return true ,otherwise return false
-     */
-    private String getHost(String address) {
-        if (Boolean.TRUE.equals(Host.isOldVersion(address))) {
-            return address;
-        }
-        return Host.of(address).getIp();
-    }
-
-    /**
      * query log
      *
      * @param taskInstance  task instance
@@ -214,11 +208,10 @@ public class LoggerServiceImpl extends BaseServiceImpl implements LoggerService 
      * @return log string data
      */
     private String queryLog(TaskInstance taskInstance, int skipLineNum, int limit) {
+        Host host = Host.of(taskInstance.getHost());
 
-        String host = getHost(taskInstance.getHost());
-
-        logger.info("log host : {} , logPath : {} , logServer port : {}", host, taskInstance.getLogPath(),
-                PropertyUtils.getInt(Constants.RPC_PORT, 50051));
+        logger.info("log host : {} , logPath : {} , port : {}", host.getIp(), taskInstance.getLogPath(),
+                host.getPort());
 
         StringBuilder log = new StringBuilder();
         if (skipLineNum == 0) {
@@ -230,7 +223,7 @@ public class LoggerServiceImpl extends BaseServiceImpl implements LoggerService 
         }
 
         log.append(logClient
-                .rollViewLog(host, PropertyUtils.getInt(Constants.RPC_PORT, 50051), taskInstance.getLogPath(), skipLineNum, limit));
+                .rollViewLog(host.getIp(), host.getPort(), taskInstance.getLogPath(), skipLineNum, limit));
 
         return log.toString();
     }
@@ -242,12 +235,12 @@ public class LoggerServiceImpl extends BaseServiceImpl implements LoggerService 
      * @return log byte array
      */
     private byte[] getLogBytes(TaskInstance taskInstance) {
-        String host = getHost(taskInstance.getHost());
+        Host host = Host.of(taskInstance.getHost());
         byte[] head = String.format(LOG_HEAD_FORMAT,
                 taskInstance.getLogPath(),
                 host,
                 Constants.SYSTEM_LINE_SEPARATOR).getBytes(StandardCharsets.UTF_8);
         return Bytes.concat(head,
-                logClient.getLogBytes(host, PropertyUtils.getInt(Constants.RPC_PORT, 50051), taskInstance.getLogPath()));
+                logClient.getLogBytes(host.getIp(), host.getPort(), taskInstance.getLogPath()));
     }
 }

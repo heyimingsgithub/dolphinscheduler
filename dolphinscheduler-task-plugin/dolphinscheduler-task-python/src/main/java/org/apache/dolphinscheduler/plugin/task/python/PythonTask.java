@@ -19,15 +19,15 @@ package org.apache.dolphinscheduler.plugin.task.python;
 
 import org.apache.dolphinscheduler.plugin.task.api.AbstractTaskExecutor;
 import org.apache.dolphinscheduler.plugin.task.api.ShellCommandExecutor;
+import org.apache.dolphinscheduler.plugin.task.api.TaskConstants;
 import org.apache.dolphinscheduler.plugin.task.api.TaskException;
-import org.apache.dolphinscheduler.plugin.task.api.TaskResponse;
-import org.apache.dolphinscheduler.plugin.task.util.MapUtils;
-import org.apache.dolphinscheduler.spi.task.AbstractParameters;
-import org.apache.dolphinscheduler.spi.task.Property;
-import org.apache.dolphinscheduler.spi.task.TaskConstants;
-import org.apache.dolphinscheduler.spi.task.paramparser.ParamUtils;
-import org.apache.dolphinscheduler.spi.task.paramparser.ParameterUtils;
-import org.apache.dolphinscheduler.spi.task.request.TaskRequest;
+import org.apache.dolphinscheduler.plugin.task.api.TaskExecutionContext;
+import org.apache.dolphinscheduler.plugin.task.api.model.Property;
+import org.apache.dolphinscheduler.plugin.task.api.model.TaskResponse;
+import org.apache.dolphinscheduler.plugin.task.api.parameters.AbstractParameters;
+import org.apache.dolphinscheduler.plugin.task.api.parser.ParamUtils;
+import org.apache.dolphinscheduler.plugin.task.api.parser.ParameterUtils;
+import org.apache.dolphinscheduler.plugin.task.api.utils.MapUtils;
 import org.apache.dolphinscheduler.spi.utils.JSONUtils;
 
 import org.apache.commons.io.FileUtils;
@@ -40,6 +40,8 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.base.Preconditions;
+
 /**
  * python task
  */
@@ -48,21 +50,25 @@ public class PythonTask extends AbstractTaskExecutor {
     /**
      * python parameters
      */
-    private PythonParameters pythonParameters;
+    protected PythonParameters pythonParameters;
 
     /**
      * shell command executor
      */
     private ShellCommandExecutor shellCommandExecutor;
 
-    private TaskRequest taskRequest;
+    protected TaskExecutionContext taskRequest;
+
+    protected static final String PYTHON_HOME = "PYTHON_HOME";
+
+    private static final String DEFAULT_PYTHON_VERSION = "python";
 
     /**
      * constructor
      *
      * @param taskRequest taskRequest
      */
-    public PythonTask(TaskRequest taskRequest) {
+    public PythonTask(TaskExecutionContext taskRequest) {
         super(taskRequest);
         this.taskRequest = taskRequest;
 
@@ -94,7 +100,7 @@ public class PythonTask extends AbstractTaskExecutor {
     }
 
     @Override
-    public void handle() throws Exception {
+    public void handle() throws TaskException {
         try {
             // generate the content of this python script
             String pythonScriptContent = buildPythonScriptContent();
@@ -102,12 +108,12 @@ public class PythonTask extends AbstractTaskExecutor {
             String pythonScriptFile = buildPythonCommandFilePath();
 
             // create this file
-            createPythonCommandFileIfNotExists(pythonScriptContent,pythonScriptFile);
-            String command = "python " + pythonScriptFile;
+            createPythonCommandFileIfNotExists(pythonScriptContent, pythonScriptFile);
+            String command = buildPythonExecuteCommand(pythonScriptFile);
 
             TaskResponse taskResponse = shellCommandExecutor.run(command);
             setExitStatusCode(taskResponse.getExitStatusCode());
-            setAppIds(taskResponse.getAppIds());
+            setAppIds(String.join(TaskConstants.COMMA, getApplicationIds()));
             setProcessId(taskResponse.getProcessId());
             setVarPool(shellCommandExecutor.getVarPool());
         } catch (Exception e) {
@@ -133,7 +139,7 @@ public class PythonTask extends AbstractTaskExecutor {
      *
      * @param rawScript rawScript
      * @return String
-     * @throws StringIndexOutOfBoundsException StringIndexOutOfBoundsException
+     * @throws StringIndexOutOfBoundsException if substring index is out of bounds
      */
     private static String convertPythonScriptPlaceholders(String rawScript) throws StringIndexOutOfBoundsException {
         int len = "${setShareVar(${".length();
@@ -163,7 +169,7 @@ public class PythonTask extends AbstractTaskExecutor {
     /**
      * create python command file if not exists
      *
-     * @param pythonScript exec python script
+     * @param pythonScript     exec python script
      * @param pythonScriptFile python script file
      * @throws IOException io exception
      */
@@ -182,8 +188,8 @@ public class PythonTask extends AbstractTaskExecutor {
 
             // write data to file
             FileUtils.writeStringToFile(new File(pythonScriptFile),
-                sb.toString(),
-                StandardCharsets.UTF_8);
+                    sb.toString(),
+                    StandardCharsets.UTF_8);
         }
     }
 
@@ -202,22 +208,32 @@ public class PythonTask extends AbstractTaskExecutor {
      * @return raw python script
      * @throws Exception exception
      */
-    private String buildPythonScriptContent() throws Exception {
-        String rawPythonScript = pythonParameters.getRawScript().replaceAll("\\r\\n", "\n");
-
-        // replace placeholder
-        Map<String, Property> paramsMap = ParamUtils.convert(taskRequest, pythonParameters);
-        if (MapUtils.isEmpty(paramsMap)) {
-            paramsMap = new HashMap<>();
-        }
-        if (MapUtils.isNotEmpty(taskRequest.getParamsMap())) {
-            paramsMap.putAll(taskRequest.getParamsMap());
-        }
-        rawPythonScript = ParameterUtils.convertParameterPlaceholders(rawPythonScript, ParamUtils.convert(paramsMap));
-
+    protected String buildPythonScriptContent() throws Exception {
         logger.info("raw python script : {}", pythonParameters.getRawScript());
+        String rawPythonScript = pythonParameters.getRawScript().replaceAll("\\r\\n", "\n");
+        Map<String, Property> paramsMap = mergeParamsWithContext(pythonParameters);
+        return ParameterUtils.convertParameterPlaceholders(rawPythonScript, ParamUtils.convert(paramsMap));
+    }
 
-        return rawPythonScript;
+    protected Map<String, Property> mergeParamsWithContext(AbstractParameters parameters) {
+        // replace placeholder
+        return taskRequest.getPrepareParamsMap();
+    }
+
+    /**
+     * Build the python task command.
+     * If user have set the 'PYTHON_HOME' environment, we will use the 'PYTHON_HOME',
+     * if not, we will default use python.
+     *
+     * @param pythonFile Python file, cannot be empty.
+     * @return Python execute command, e.g. 'python test.py'.
+     */
+    protected String buildPythonExecuteCommand(String pythonFile) {
+        Preconditions.checkNotNull(pythonFile, "Python file cannot be null");
+
+        String pythonHome = String.format("${%s}", PYTHON_HOME);
+
+        return pythonHome + " " + pythonFile;
     }
 
 }

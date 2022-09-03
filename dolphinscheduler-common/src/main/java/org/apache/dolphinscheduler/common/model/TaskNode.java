@@ -17,16 +17,20 @@
 
 package org.apache.dolphinscheduler.common.model;
 
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_BLOCKING;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_CONDITIONS;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_SWITCH;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.dolphinscheduler.common.Constants;
 import org.apache.dolphinscheduler.common.enums.Priority;
-import org.apache.dolphinscheduler.common.enums.TaskTimeoutStrategy;
-import org.apache.dolphinscheduler.common.enums.TaskType;
-import org.apache.dolphinscheduler.common.task.TaskTimeoutParameter;
+import org.apache.dolphinscheduler.common.enums.TaskExecuteType;
+import org.apache.dolphinscheduler.plugin.task.api.enums.TaskTimeoutStrategy;
+import org.apache.dolphinscheduler.plugin.task.api.parameters.TaskTimeoutParameter;
 import org.apache.dolphinscheduler.common.utils.CollectionUtils;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.HashMap;
 import java.util.List;
@@ -87,6 +91,15 @@ public class TaskNode {
      * Unit of retry interval: points
      */
     private int retryInterval;
+
+    /**
+     * task group id
+     */
+    private int taskGroupId;
+    /**
+     * task group id
+     */
+    private int taskGroupPriority;
 
     /**
      * params information
@@ -165,6 +178,21 @@ public class TaskNode {
      * delay execution time.
      */
     private int delayTime;
+
+    /**
+     * cpu quota
+     */
+    private Integer cpuQuota;
+
+    /**
+     * max memory
+     */
+    private Integer memoryMax;
+
+    /**
+     * task execute type
+     */
+    private TaskExecuteType taskExecuteType;
 
     public String getId() {
         return id;
@@ -250,9 +278,12 @@ public class TaskNode {
         this.runFlag = runFlag;
     }
 
-    public Boolean isForbidden() {
-        return (!StringUtils.isEmpty(this.runFlag)
-                && this.runFlag.equals(Constants.FLOWNODE_RUN_FLAG_FORBIDDEN));
+    public boolean isForbidden() {
+        // skip stream task when run DAG
+        if (taskExecuteType == TaskExecuteType.STREAM) {
+            return true;
+        }
+        return StringUtils.isNotEmpty(this.runFlag) && this.runFlag.equals(Constants.FLOWNODE_RUN_FLAG_FORBIDDEN);
     }
 
     @Override
@@ -275,7 +306,8 @@ public class TaskNode {
                 && Objects.equals(workerGroup, taskNode.workerGroup)
                 && Objects.equals(environmentCode, taskNode.environmentCode)
                 && Objects.equals(conditionResult, taskNode.conditionResult)
-                && CollectionUtils.equalLists(depList, taskNode.depList);
+                && CollectionUtils.equalLists(depList, taskNode.depList)
+                && Objects.equals(taskExecuteType, taskNode.taskExecuteType);
     }
 
     @Override
@@ -378,15 +410,19 @@ public class TaskNode {
     }
 
     public boolean isConditionsTask() {
-        return TaskType.CONDITIONS.getDesc().equalsIgnoreCase(this.getType());
+        return TASK_TYPE_CONDITIONS.equalsIgnoreCase(this.getType());
     }
 
     public boolean isSwitchTask() {
-        return TaskType.SWITCH.toString().equalsIgnoreCase(this.getType());
+        return TASK_TYPE_SWITCH.equalsIgnoreCase(this.getType());
     }
 
     public List<PreviousTaskNode> getPreTaskNodeList() {
         return preTaskNodeList;
+    }
+
+    public boolean isBlockingTask() {
+        return TASK_TYPE_BLOCKING.equalsIgnoreCase(this.getType());
     }
 
     public void setPreTaskNodeList(List<PreviousTaskNode> preTaskNodeList) {
@@ -438,7 +474,8 @@ public class TaskNode {
                 + ", workerGroup='" + workerGroup + '\''
                 + ", environmentCode=" + environmentCode
                 + ", timeout='" + timeout + '\''
-                + ", delayTime=" + delayTime
+                + ", delayTime=" + delayTime + '\''
+                + ", taskExecuteType=" + taskExecuteType
                 + '}';
     }
 
@@ -464,5 +501,45 @@ public class TaskNode {
 
     public void setWaitStartTimeout(String waitStartTimeout) {
         this.waitStartTimeout = waitStartTimeout;
+    }
+
+    public int getTaskGroupId() {
+        return taskGroupId;
+    }
+
+    public void setTaskGroupId(int taskGroupId) {
+        this.taskGroupId = taskGroupId;
+    }
+
+    public int getTaskGroupPriority() {
+        return taskGroupPriority;
+    }
+
+    public void setTaskGroupPriority(int taskGroupPriority) {
+        this.taskGroupPriority = taskGroupPriority;
+    }
+
+    public Integer getCpuQuota() {
+        return cpuQuota == null ? -1 : cpuQuota;
+    }
+
+    public void setCpuQuota(Integer cpuQuota) {
+        this.cpuQuota = cpuQuota;
+    }
+
+    public Integer getMemoryMax() {
+        return memoryMax == null ? -1 : memoryMax;
+    }
+
+    public void setMemoryMax(Integer memoryMax) {
+        this.memoryMax = memoryMax;
+    }
+
+    public TaskExecuteType getTaskExecuteType() {
+        return taskExecuteType;
+    }
+
+    public void setTaskExecuteType(TaskExecuteType taskExecuteType) {
+        this.taskExecuteType = taskExecuteType;
     }
 }

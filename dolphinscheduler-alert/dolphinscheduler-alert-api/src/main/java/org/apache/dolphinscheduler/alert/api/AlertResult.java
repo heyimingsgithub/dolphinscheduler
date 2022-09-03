@@ -19,105 +19,29 @@
 
 package org.apache.dolphinscheduler.alert.api;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * alert result
+ */
+@Builder
+@AllArgsConstructor
+@Data
+@NoArgsConstructor
 public class AlertResult {
+
+    /**
+     * todo: use enum
+     * false or true
+     */
     private String status;
+
+    /**
+     * alert result message, each plugin can have its own message
+     */
     private String message;
 
-    public AlertResult(String status, String message) {
-        this.status = status;
-        this.message = message;
-    }
-
-    public AlertResult() {
-    }
-
-    public static AlertResultBuilder builder() {
-        return new AlertResultBuilder();
-    }
-
-    public String getStatus() {
-        return this.status;
-    }
-
-    public AlertResult setStatus(String status) {
-        this.status = status;
-        return this;
-    }
-
-    public String getMessage() {
-        return this.message;
-    }
-
-    public AlertResult setMessage(String message) {
-        this.message = message;
-        return this;
-    }
-
-    public boolean equals(final Object o) {
-        if (o == this) {
-            return true;
-        }
-        if (!(o instanceof AlertResult)) {
-            return false;
-        }
-        final AlertResult other = (AlertResult) o;
-        if (!other.canEqual((Object) this)) {
-            return false;
-        }
-        final Object this$status = this.getStatus();
-        final Object other$status = other.getStatus();
-        if (this$status == null ? other$status != null : !this$status.equals(other$status)) {
-            return false;
-        }
-        final Object this$message = this.getMessage();
-        final Object other$message = other.getMessage();
-        if (this$message == null ? other$message != null : !this$message.equals(other$message)) {
-            return false;
-        }
-        return true;
-    }
-
-    protected boolean canEqual(final Object other) {
-        return other instanceof AlertResult;
-    }
-
-    public int hashCode() {
-        final int PRIME = 59;
-        int result = 1;
-        final Object $status = this.getStatus();
-        result = result * PRIME + ($status == null ? 43 : $status.hashCode());
-        final Object $message = this.getMessage();
-        result = result * PRIME + ($message == null ? 43 : $message.hashCode());
-        return result;
-    }
-
-    public String toString() {
-        return "AlertResult(status=" + this.getStatus() + ", message=" + this.getMessage() + ")";
-    }
-
-    public static class AlertResultBuilder {
-        private String status;
-        private String message;
-
-        AlertResultBuilder() {
-        }
-
-        public AlertResultBuilder status(String status) {
-            this.status = status;
-            return this;
-        }
-
-        public AlertResultBuilder message(String message) {
-            this.message = message;
-            return this;
-        }
-
-        public AlertResult build() {
-            return new AlertResult(status, message);
-        }
-
-        public String toString() {
-            return "AlertResult.AlertResultBuilder(status=" + this.status + ", message=" + this.message + ")";
-        }
-    }
 }

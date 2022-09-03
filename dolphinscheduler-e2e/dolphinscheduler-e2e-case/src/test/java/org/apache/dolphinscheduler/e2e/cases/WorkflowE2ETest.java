@@ -19,12 +19,10 @@
 
 package org.apache.dolphinscheduler.e2e.cases;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-
 import org.apache.dolphinscheduler.e2e.core.DolphinScheduler;
 import org.apache.dolphinscheduler.e2e.pages.LoginPage;
 import org.apache.dolphinscheduler.e2e.pages.common.NavBarPage;
+import org.apache.dolphinscheduler.e2e.pages.project.ProjectDetailPage;
 import org.apache.dolphinscheduler.e2e.pages.project.ProjectPage;
 import org.apache.dolphinscheduler.e2e.pages.project.workflow.WorkflowDefinitionTab;
 import org.apache.dolphinscheduler.e2e.pages.project.workflow.WorkflowForm.TaskType;
@@ -34,29 +32,51 @@ import org.apache.dolphinscheduler.e2e.pages.project.workflow.task.ShellTaskForm
 import org.apache.dolphinscheduler.e2e.pages.project.workflow.task.SubWorkflowTaskForm;
 import org.apache.dolphinscheduler.e2e.pages.security.SecurityPage;
 import org.apache.dolphinscheduler.e2e.pages.security.TenantPage;
-
+import org.apache.dolphinscheduler.e2e.pages.security.UserPage;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.openqa.selenium.By;
 import org.openqa.selenium.remote.RemoteWebDriver;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @DolphinScheduler(composeFiles = "docker/basic/docker-compose.yaml")
 class WorkflowE2ETest {
     private static final String project = "test-workflow-1";
+
+    private static final String user = "admin";
+
+    private static final String password = "dolphinscheduler123";
+
+    private static final String email = "admin@gmail.com";
+
+    private static final String phone = "15800000000";
+
     private static final String tenant = System.getProperty("user.name");
 
     private static RemoteWebDriver browser;
 
     @BeforeAll
     public static void setup() {
-        new LoginPage(browser)
-            .login("admin", "dolphinscheduler123")
-            .goToNav(SecurityPage.class)
-            .goToTab(TenantPage.class)
-            .create(tenant)
-            .goToNav(ProjectPage.class)
-            .create(project)
+        UserPage userPage = new LoginPage(browser)
+                .login("admin", "dolphinscheduler123")
+                .goToNav(SecurityPage.class)
+                .goToTab(TenantPage.class)
+                .create(tenant)
+                .goToNav(SecurityPage.class)
+                .goToTab(UserPage.class);
+
+        new WebDriverWait(userPage.driver(), 20).until(ExpectedConditions.visibilityOfElementLocated(
+                new By.ByClassName("name")));
+
+        userPage.update(user, user, email, phone, tenant)
+                .goToNav(ProjectPage.class)
+                .create(project)
         ;
     }
 
@@ -81,9 +101,8 @@ class WorkflowE2ETest {
     @Test
     @Order(1)
     void testCreateWorkflow() {
-        final var workflow = "test-workflow-1";
-
-        final var workflowDefinitionPage =
+        final String workflow = "test-workflow-1";
+        WorkflowDefinitionTab workflowDefinitionPage =
             new ProjectPage(browser)
                 .goTo(project)
                 .goToTab(WorkflowDefinitionTab.class);
@@ -104,19 +123,19 @@ class WorkflowE2ETest {
             .submit()
         ;
 
-        await().untilAsserted(() -> assertThat(
-            workflowDefinitionPage.workflowList()
-        ).anyMatch(it -> it.getText().contains(workflow)));
-
+        await().untilAsserted(() -> assertThat(workflowDefinitionPage.workflowList())
+                .as("Workflow list should contain newly-created workflow")
+                .anyMatch(
+                        it -> it.getText().contains(workflow)
+                ));
         workflowDefinitionPage.publish(workflow);
     }
 
     @Test
     @Order(10)
     void testCreateSubWorkflow() {
-        final var workflow = "test-sub-workflow-1";
-
-        final var workflowDefinitionPage =
+        final String workflow = "test-sub-workflow-1";
+        WorkflowDefinitionTab workflowDefinitionPage =
             new ProjectPage(browser)
                 .goToNav(ProjectPage.class)
                 .goTo(project)
@@ -126,6 +145,8 @@ class WorkflowE2ETest {
             .createWorkflow()
 
             .<SubWorkflowTaskForm> addTask(TaskType.SUB_PROCESS)
+            .childNode("test-workflow-1")
+            .name("test-sub-1")
             .submit()
 
             .submit()
@@ -138,60 +159,56 @@ class WorkflowE2ETest {
         await().untilAsserted(() -> assertThat(
             workflowDefinitionPage.workflowList()
         ).anyMatch(it -> it.getText().contains(workflow)));
-
         workflowDefinitionPage.publish(workflow);
     }
 
     @Test
     @Order(30)
     void testRunWorkflow() {
-        final var workflow = "test-workflow-1";
-
-        final var projectPage =
-            new ProjectPage(browser)
-                .goToNav(ProjectPage.class)
-                .goTo(project);
-
-        projectPage
-            .goToTab(WorkflowInstanceTab.class)
-            .deleteAll();
+        final String workflow = "test-workflow-1";
+        final ProjectDetailPage projectPage =
+                new ProjectPage(browser)
+                        .goToNav(ProjectPage.class)
+                        .goTo(project);
 
         projectPage
-            .goToTab(WorkflowDefinitionTab.class)
-            .run(workflow)
-            .submit();
+                .goToTab(WorkflowInstanceTab.class)
+                .deleteAll();
+        projectPage
+                .goToTab(WorkflowDefinitionTab.class)
+                .run(workflow)
+                .submit();
 
         await().untilAsserted(() -> {
             browser.navigate().refresh();
 
             final Row row = projectPage
-                .goToTab(WorkflowInstanceTab.class)
-                .instances()
-                .iterator()
-                .next();
+                    .goToTab(WorkflowInstanceTab.class)
+                    .instances()
+                    .iterator()
+                    .next();
 
             assertThat(row.isSuccess()).isTrue();
             assertThat(row.executionTime()).isEqualTo(1);
         });
-
         // Test rerun
         projectPage
-            .goToTab(WorkflowInstanceTab.class)
-            .instances()
-            .stream()
-            .filter(it -> it.rerunButton().isDisplayed())
-            .iterator()
-            .next()
-            .rerun();
+                .goToTab(WorkflowInstanceTab.class)
+                .instances()
+                .stream()
+                .filter(it -> it.rerunButton().isDisplayed())
+                .iterator()
+                .next()
+                .rerun();
 
         await().untilAsserted(() -> {
             browser.navigate().refresh();
 
             final Row row = projectPage
-                .goToTab(WorkflowInstanceTab.class)
-                .instances()
-                .iterator()
-                .next();
+                    .goToTab(WorkflowInstanceTab.class)
+                    .instances()
+                    .iterator()
+                    .next();
 
             assertThat(row.isSuccess()).isTrue();
             assertThat(row.executionTime()).isEqualTo(2);

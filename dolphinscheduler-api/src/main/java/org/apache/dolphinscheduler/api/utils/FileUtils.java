@@ -20,6 +20,7 @@ import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -38,14 +39,13 @@ public class FileUtils {
     private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
 
     /**
-     * copy source file to target file
-     *
-     * @param file         file
-     * @param destFilename destination file name
+     * copy source InputStream to target file
+     * @param file
+     * @param destFilename
      */
-    public static void copyFile(MultipartFile file, String destFilename) {
+    public static void copyInputStreamToFile(MultipartFile file, String destFilename) {
         try {
-            org.apache.commons.io.FileUtils.copyFile(file.getResource().getFile(), new File(destFilename));
+            org.apache.commons.io.FileUtils.copyInputStreamToFile(file.getInputStream(), new File(destFilename));
         } catch (IOException e) {
             logger.error("failed to copy file , {} is empty file", file.getOriginalFilename(), e);
         }
@@ -77,8 +77,8 @@ public class FileUtils {
      * @return file content string
      */
     public static String file2String(MultipartFile file) {
-        try {
-            return IOUtils.toString(file.getInputStream(), StandardCharsets.UTF_8);
+        try (InputStream inputStream = file.getInputStream()) {
+            return IOUtils.toString(inputStream, StandardCharsets.UTF_8);
         } catch (IOException e) {
             logger.error("file convert to string failed: {}", file.getName());
         }

@@ -17,79 +17,100 @@
 
 package org.apache.dolphinscheduler.alert;
 
-import static org.apache.dolphinscheduler.common.Constants.ALERT_RPC_PORT;
-
-import org.apache.dolphinscheduler.common.thread.Stopper;
-import org.apache.dolphinscheduler.common.utils.PropertyUtils;
-import org.apache.dolphinscheduler.dao.AlertDao;
+import org.apache.dolphinscheduler.common.Constants;
+import org.apache.dolphinscheduler.common.lifecycle.ServerLifeCycleManager;
+import org.apache.dolphinscheduler.common.thread.ThreadUtils;
 import org.apache.dolphinscheduler.dao.PluginDao;
-import org.apache.dolphinscheduler.dao.entity.Alert;
 import org.apache.dolphinscheduler.remote.NettyRemotingServer;
 import org.apache.dolphinscheduler.remote.command.CommandType;
 import org.apache.dolphinscheduler.remote.config.NettyServerConfig;
 
 import java.io.Closeable;
-import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.event.EventListener;
 
-@EnableAutoConfiguration
-@ComponentScan(value = {
-    "org.apache.dolphinscheduler.alert",
-    "org.apache.dolphinscheduler.dao"
-})
+@SpringBootApplication
+@ComponentScan("org.apache.dolphinscheduler")
 public class AlertServer implements Closeable {
+
     private static final Logger logger = LoggerFactory.getLogger(AlertServer.class);
 
     private final PluginDao pluginDao;
-    private final AlertDao alertDao;
-    private final AlertPluginManager alertPluginManager;
-    private final AlertSender alertSender;
+    private final AlertSenderService alertSenderService;
     private final AlertRequestProcessor alertRequestProcessor;
+    private final AlertConfig alertConfig;
+    private NettyRemotingServer nettyRemotingServer;
 
-    private NettyRemotingServer server;
-
-    public AlertServer(PluginDao pluginDao, AlertDao alertDao, AlertPluginManager alertPluginManager, AlertSender alertSender, AlertRequestProcessor alertRequestProcessor) {
+    public AlertServer(PluginDao pluginDao,
+                       AlertSenderService alertSenderService,
+                       AlertRequestProcessor alertRequestProcessor,
+                       AlertConfig alertConfig) {
         this.pluginDao = pluginDao;
-        this.alertDao = alertDao;
-        this.alertPluginManager = alertPluginManager;
-        this.alertSender = alertSender;
+        this.alertSenderService = alertSenderService;
         this.alertRequestProcessor = alertRequestProcessor;
+        this.alertConfig = alertConfig;
     }
 
+    /**
+     * alert server startup, not use web service
+     *
+     * @param args arguments
+     */
     public static void main(String[] args) {
-        SpringApplication.run(AlertServer.class, args);
+        Thread.currentThread().setName(Constants.THREAD_NAME_ALERT_SERVER);
+        new SpringApplicationBuilder(AlertServer.class).run(args);
     }
 
-    @PostConstruct
-    public void start() {
-        logger.info("Starting Alert server");
+    @EventListener
+    public void run(ApplicationReadyEvent readyEvent) {
+        logger.info("Alert server is staring ...");
 
         checkTable();
         startServer();
-
-        if (alertPluginManager.size() == 0) {
-            logger.warn("No alert plugin, alert sender will exit.");
-            return;
-        }
-
-        Executors.newScheduledThreadPool(1)
-                 .scheduleAtFixedRate(new Sender(), 5, 5, TimeUnit.SECONDS);
+        alertSenderService.start();
+        logger.info("Alert server is started ...");
     }
 
     @Override
     @PreDestroy
     public void close() {
-        server.close();
+        destroy("alert server destroy");
+    }
+
+    /**
+     * gracefully stop
+     *
+     * @param cause stop cause
+     */
+    public void destroy(String cause) {
+
+        try {
+            // set stop signal is true
+            // execute only once
+            if (!ServerLifeCycleManager.toStopped()) {
+                logger.warn("AlterServer is already stopped");
+                return;
+            }
+
+            logger.info("Alert server is stopping, cause: {}", cause);
+
+            // thread sleep 3 seconds for thread quietly stop
+            ThreadUtils.sleep(Constants.SERVER_CLOSE_WAIT_TIME.toMillis());
+
+            // close
+            this.nettyRemotingServer.close();
+            logger.info("Alter server stopped, cause: {}", cause);
+        } catch (Exception e) {
+            logger.error("Alert server stop failed, cause: {}", cause, e);
+        }
     }
 
     private void checkTable() {
@@ -101,26 +122,11 @@ public class AlertServer implements Closeable {
 
     private void startServer() {
         NettyServerConfig serverConfig = new NettyServerConfig();
-        serverConfig.setListenPort(PropertyUtils.getInt(ALERT_RPC_PORT, 50052));
+        serverConfig.setListenPort(alertConfig.getPort());
 
-        server = new NettyRemotingServer(serverConfig);
-        server.registerProcessor(CommandType.ALERT_SEND_REQUEST, alertRequestProcessor);
-        server.start();
+        nettyRemotingServer = new NettyRemotingServer(serverConfig);
+        nettyRemotingServer.registerProcessor(CommandType.ALERT_SEND_REQUEST, alertRequestProcessor);
+        nettyRemotingServer.start();
     }
 
-    final class Sender implements Runnable {
-        @Override
-        public void run() {
-            if (!Stopper.isRunning()) {
-                return;
-            }
-
-            try {
-                final List<Alert> alerts = alertDao.listPendingAlerts();
-                alertSender.send(alerts);
-            } catch (Exception e) {
-                logger.error("Failed to send alert", e);
-            }
-        }
-    }
 }

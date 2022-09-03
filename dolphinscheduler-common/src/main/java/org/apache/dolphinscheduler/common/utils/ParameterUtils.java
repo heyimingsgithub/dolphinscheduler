@@ -18,20 +18,17 @@
 package org.apache.dolphinscheduler.common.utils;
 
 import org.apache.dolphinscheduler.common.Constants;
-import org.apache.dolphinscheduler.common.enums.CommandType;
-import org.apache.dolphinscheduler.common.process.Property;
-import org.apache.dolphinscheduler.common.utils.placeholder.BusinessTimeUtils;
-import org.apache.dolphinscheduler.common.utils.placeholder.PlaceholderUtils;
-import org.apache.dolphinscheduler.common.utils.placeholder.TimePlaceholderUtils;
+import org.apache.dolphinscheduler.plugin.task.api.model.Property;
+import org.apache.dolphinscheduler.plugin.task.api.parser.PlaceholderUtils;
+import org.apache.dolphinscheduler.plugin.task.api.parser.TimePlaceholderUtils;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,9 +36,8 @@ import java.util.regex.Pattern;
  * parameter parse utils
  */
 public class ParameterUtils {
-    private static final String DATE_PARSE_PATTERN = "\\$\\[([^\\$\\]]+)]";
-
-    private static final String DATE_START_PATTERN = "^[0-9]";
+    private static final Pattern DATE_PARSE_PATTERN = Pattern.compile("\\$\\[([^\\$\\]]+)]");
+    private static final Pattern DATE_START_PATTERN = Pattern.compile("^[0-9]");
 
     private ParameterUtils() {
         throw new UnsupportedOperationException("Construct ParameterUtils");
@@ -66,7 +62,7 @@ public class ParameterUtils {
         if (parameterMap != null && null != parameterMap.get(Constants.PARAMETER_DATETIME)) {
             //Get current time, schedule execute time
             String cronTimeStr = parameterMap.get(Constants.PARAMETER_DATETIME);
-            cronTime = DateUtils.parse(cronTimeStr, Constants.PARAMETER_FORMAT_TIME);
+            cronTime = DateUtils.parse(cronTimeStr, Constants.PARAMETER_FORMAT_TIME, null);
         } else {
             cronTime = new Date();
         }
@@ -75,58 +71,6 @@ public class ParameterUtils {
             return dateTemplateParse(parameterString, cronTime);
         }
         return parameterString;
-    }
-
-    /**
-     * curing user define parameters
-     *
-     * @param globalParamMap  global param map
-     * @param globalParamList global param list
-     * @param commandType     command type
-     * @param scheduleTime    schedule time
-     * @return curing user define parameters
-     */
-    public static String curingGlobalParams(Map<String, String> globalParamMap, List<Property> globalParamList,
-                                            CommandType commandType, Date scheduleTime) {
-
-        if (globalParamList == null || globalParamList.isEmpty()) {
-            return null;
-        }
-
-        Map<String, String> globalMap = new HashMap<>();
-        if (globalParamMap != null) {
-            globalMap.putAll(globalParamMap);
-        }
-        Map<String, String> allParamMap = new HashMap<>();
-        //If it is a complement, a complement time needs to be passed in, according to the task type
-        Map<String, String> timeParams = BusinessTimeUtils.
-            getBusinessTime(commandType, scheduleTime);
-
-        if (timeParams != null) {
-            allParamMap.putAll(timeParams);
-        }
-
-        allParamMap.putAll(globalMap);
-
-        Set<Map.Entry<String, String>> entries = allParamMap.entrySet();
-
-        Map<String, String> resolveMap = new HashMap<>();
-        for (Map.Entry<String, String> entry : entries) {
-            String val = entry.getValue();
-            if (val.startsWith("$")) {
-                String str = ParameterUtils.convertParameterPlaceholders(val, allParamMap);
-                resolveMap.put(entry.getKey(), str);
-            }
-        }
-        globalMap.putAll(resolveMap);
-
-        for (Property property : globalParamList) {
-            String val = globalMap.get(property.getProp());
-            if (val != null) {
-                property.setValue(val);
-            }
-        }
-        return JSONUtils.toJsonString(globalParamList);
     }
 
     /**
@@ -152,7 +96,7 @@ public class ParameterUtils {
      */
     public static Map<String, String> convert(Map<String, Property> paramsMap) {
         Map<String, String> map = new HashMap<>();
-        Iterator<Map.Entry<String, Property>> iter = paramsMap.entrySet().iterator();
+        Iterator<Entry<String, Property>> iter = paramsMap.entrySet().iterator();
         while (iter.hasNext()) {
             Map.Entry<String, Property> en = iter.next();
             map.put(en.getKey(), en.getValue().getValue());
@@ -164,15 +108,14 @@ public class ParameterUtils {
         if (templateStr == null) {
             return null;
         }
-        Pattern pattern = Pattern.compile(DATE_PARSE_PATTERN);
 
         StringBuffer newValue = new StringBuffer(templateStr.length());
 
-        Matcher matcher = pattern.matcher(templateStr);
+        Matcher matcher = DATE_PARSE_PATTERN.matcher(templateStr);
 
         while (matcher.find()) {
             String key = matcher.group(1);
-            if (Pattern.matches(DATE_START_PATTERN, key)) {
+            if (DATE_START_PATTERN.matcher(key).matches()) {
                 continue;
             }
             String value = TimePlaceholderUtils.getPlaceHolderTime(key, date);

@@ -27,13 +27,14 @@ import org.apache.dolphinscheduler.common.Constants;
 import org.apache.dolphinscheduler.common.enums.PluginType;
 import org.apache.dolphinscheduler.dao.entity.User;
 
+import springfox.documentation.annotations.ApiIgnore;
+
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,7 +45,6 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
-import springfox.documentation.annotations.ApiIgnore;
 
 /**
  * ui plugin controller
@@ -62,7 +62,7 @@ public class UiPluginController extends BaseController {
 
     @ApiOperation(value = "queryUiPluginsByType", notes = "QUERY_UI_PLUGINS_BY_TYPE")
     @ApiImplicitParams({
-        @ApiImplicitParam(name = "pluginType", value = "pluginType", required = true, dataType = "PluginType"),
+            @ApiImplicitParam(name = "pluginType", value = "pluginType", required = true, dataTypeClass = PluginType.class),
     })
     @GetMapping(value = "/query-by-type")
     @ResponseStatus(HttpStatus.CREATED)
@@ -77,7 +77,7 @@ public class UiPluginController extends BaseController {
 
     @ApiOperation(value = "queryUiPluginDetailById", notes = "QUERY_UI_PLUGIN_DETAIL_BY_ID")
     @ApiImplicitParams({
-        @ApiImplicitParam(name = "id", value = "PLUGIN_ID", required = true, dataType = "Int", example = "100"),
+            @ApiImplicitParam(name = "id", value = "PLUGIN_ID", required = true, dataTypeClass = int.class, example = "100"),
     })
     @GetMapping(value = "/{id}")
     @ResponseStatus(HttpStatus.CREATED)

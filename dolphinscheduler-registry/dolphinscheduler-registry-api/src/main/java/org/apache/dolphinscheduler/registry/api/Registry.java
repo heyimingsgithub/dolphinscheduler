@@ -19,12 +19,21 @@
 
 package org.apache.dolphinscheduler.registry.api;
 
+import lombok.NonNull;
+
 import java.io.Closeable;
+import java.time.Duration;
 import java.util.Collection;
-import java.util.Map;
 
 public interface Registry extends Closeable {
-    void start(Map<String, String> config);
+
+    /**
+     * Connect to the registry, will wait in the given timeout
+     *
+     * @param timeout max timeout, if timeout <= 0 will wait indefinitely.
+     * @throws RegistryException cannot connect in the given timeout
+     */
+    void connectUntilTimeout(@NonNull Duration timeout) throws RegistryException;
 
     boolean subscribe(String path, SubscribeListener listener);
 

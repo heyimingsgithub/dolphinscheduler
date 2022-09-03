@@ -25,12 +25,19 @@ import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN
 import static com.fasterxml.jackson.databind.MapperFeature.REQUIRE_SETTERS_FOR_GETTERS;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +61,14 @@ public class JSONUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(JSONUtils.class);
 
+    static {
+        logger.info("init timezone: {}",TimeZone.getDefault());
+    }
+
+    private static final SimpleModule LOCAL_DATE_TIME_MODULE = new SimpleModule()
+            .addSerializer(LocalDateTime.class, new LocalDateTimeSerializer())
+            .addDeserializer(LocalDateTime.class, new LocalDateTimeDeserializer());
+
     /**
      * can use static singleton, inject: just make sure to reuse!
      */
@@ -62,7 +77,9 @@ public class JSONUtils {
             .configure(ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
             .configure(READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
             .configure(REQUIRE_SETTERS_FOR_GETTERS, true)
-            .setTimeZone(TimeZone.getDefault());
+            .registerModule(LOCAL_DATE_TIME_MODULE)
+            .setTimeZone(TimeZone.getDefault())
+            .setDateFormat(new SimpleDateFormat(Constants.YYYY_MM_DD_HH_MM_SS));
 
     private JSONUtils() {
         throw new UnsupportedOperationException("Construct JSONUtils");
@@ -283,4 +300,27 @@ public class JSONUtils {
         }
 
     }
+
+    public static class LocalDateTimeSerializer extends JsonSerializer<LocalDateTime> {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(Constants.YYYY_MM_DD_HH_MM_SS);
+
+        @Override
+        public void serialize(LocalDateTime value,
+                              JsonGenerator gen,
+                              SerializerProvider serializers) throws IOException {
+            gen.writeString(value.format(formatter));
+        }
+    }
+
+    public static class LocalDateTimeDeserializer extends JsonDeserializer<LocalDateTime> {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(Constants.YYYY_MM_DD_HH_MM_SS);
+
+        @Override
+        public LocalDateTime deserialize(JsonParser p, DeserializationContext context) throws IOException {
+            return LocalDateTime.parse(p.getValueAsString(), formatter);
+        }
+    }
+
 }

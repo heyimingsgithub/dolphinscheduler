@@ -16,26 +16,107 @@
 # under the License.
 
 """Test Task class function."""
-
+import logging
+import re
 from unittest.mock import patch
 
 import pytest
 
-from pydolphinscheduler.core.task import Task, TaskParams, TaskRelation
+from pydolphinscheduler.core.process_definition import ProcessDefinition
+from pydolphinscheduler.core.task import Task, TaskRelation
 from tests.testing.task import Task as testTask
+from tests.testing.task import TaskWithCode
+
+TEST_TASK_RELATION_SET = set()
+TEST_TASK_RELATION_SIZE = 0
 
 
-def test_task_params_to_dict():
-    """Test TaskParams object function to_dict."""
-    expect = {
-        "resourceList": [],
-        "localParams": [],
-        "dependence": {},
-        "conditionResult": TaskParams.DEFAULT_CONDITION_RESULT,
-        "waitStartTimeout": {},
-    }
-    task_param = TaskParams()
-    assert task_param.to_dict() == expect
+@pytest.mark.parametrize(
+    "attr, expect",
+    [
+        (
+            dict(),
+            {
+                "localParams": [],
+                "resourceList": [],
+                "dependence": {},
+                "waitStartTimeout": {},
+                "conditionResult": {"successNode": [""], "failedNode": [""]},
+            },
+        ),
+        (
+            {
+                "local_params": ["foo", "bar"],
+                "resource_list": ["foo", "bar"],
+                "dependence": {"foo", "bar"},
+                "wait_start_timeout": {"foo", "bar"},
+                "condition_result": {"foo": ["bar"]},
+            },
+            {
+                "localParams": ["foo", "bar"],
+                "resourceList": [{"id": 1}],
+                "dependence": {"foo", "bar"},
+                "waitStartTimeout": {"foo", "bar"},
+                "conditionResult": {"foo": ["bar"]},
+            },
+        ),
+    ],
+)
+@patch(
+    "pydolphinscheduler.core.resource.Resource.get_id_from_database",
+    return_value=1,
+)
+@patch(
+    "pydolphinscheduler.core.task.Task.user_name",
+    return_value="test_user",
+)
+def test_property_task_params(mock_resource, mock_user_name, attr, expect):
+    """Test class task property."""
+    task = testTask(
+        "test-property-task-params",
+        "test-task",
+        **attr,
+    )
+    assert expect == task.task_params
+
+
+@pytest.mark.parametrize(
+    "pre_code, post_code, expect",
+    [
+        (123, 456, hash("123 -> 456")),
+        (12345678, 987654321, hash("12345678 -> 987654321")),
+    ],
+)
+def test_task_relation_hash_func(pre_code, post_code, expect):
+    """Test TaskRelation magic function :func:`__hash__`."""
+    task_param = TaskRelation(pre_task_code=pre_code, post_task_code=post_code)
+    assert hash(task_param) == expect
+
+
+@pytest.mark.parametrize(
+    "pre_code, post_code, size_add",
+    [
+        (123, 456, 1),
+        (123, 456, 0),
+        (456, 456, 1),
+        (123, 123, 1),
+        (456, 123, 1),
+        (0, 456, 1),
+        (123, 0, 1),
+    ],
+)
+def test_task_relation_add_to_set(pre_code, post_code, size_add):
+    """Test TaskRelation with different pre_code and post_code add to set behavior.
+
+    Here we use global variable to keep set of :class:`TaskRelation` instance and the number we expect
+    of the size when we add a new task relation to exists set.
+    """
+    task_relation = TaskRelation(pre_task_code=pre_code, post_task_code=post_code)
+    TEST_TASK_RELATION_SET.add(task_relation)
+    # hint python interpreter use global variable instead of local's
+    global TEST_TASK_RELATION_SIZE
+    TEST_TASK_RELATION_SIZE += size_add
+    assert len(TEST_TASK_RELATION_SET) == TEST_TASK_RELATION_SIZE
 
 
 def test_task_relation_to_dict():
@@ -51,18 +132,18 @@ def test_task_relation_to_dict():
         "conditionType": 0,
         "conditionParams": {},
     }
-    task_param = TaskRelation(
+    task_relation = TaskRelation(
         pre_task_code=pre_task_code, post_task_code=post_task_code
     )
-    assert task_param.to_dict() == expect
+    assert task_relation.get_define() == expect
 
 
-def test_task_to_dict():
-    """Test Task object function to_dict."""
+def test_task_get_define():
+    """Test Task object function get_define."""
     code = 123
     version = 1
-    name = "test_task_to_dict"
-    task_type = "test_task_to_dict_type"
+    name = "test_task_get_define"
+    task_type = "test_task_get_define_type"
     expect = {
         "code": code,
         "name": name,
@@ -90,8 +171,8 @@ def test_task_to_dict():
         "pydolphinscheduler.core.task.Task.gen_code_and_version",
         return_value=(code, version),
     ):
-        task = Task(name=name, task_type=task_type, task_params=TaskParams())
-        assert task.to_dict() == expect
+        task = Task(name=name, task_type=task_type)
+        assert task.get_define() == expect
 
 
 @pytest.mark.parametrize("shift", ["<<", ">>"])
@@ -100,8 +181,8 @@ def test_two_tasks_shift(shift: str):
 
     Here we test both `>>` and `<<` bit operator.
     """
-    upstream = testTask(name="upstream", task_type=shift, task_params=TaskParams())
-    downstream = testTask(name="downstream", task_type=shift, task_params=TaskParams())
+    upstream = testTask(name="upstream", task_type=shift)
+    downstream = testTask(name="downstream", task_type=shift)
     if shift == "<<":
         downstream << upstream
     elif shift == ">>":
@@ -137,10 +218,10 @@ def test_tasks_list_shift(dep_expr: str, flag: str):
         "downstream": "upstream",
     }
     task_type = "dep_task_and_tasks"
-    task = testTask(name="upstream", task_type=task_type, task_params=TaskParams())
+    task = testTask(name="upstream", task_type=task_type)
     tasks = [
-        testTask(name="downstream1", task_type=task_type, task_params=TaskParams()),
-        testTask(name="downstream2", task_type=task_type, task_params=TaskParams()),
+        testTask(name="downstream1", task_type=task_type),
+        testTask(name="downstream2", task_type=task_type),
     ]
 
     # Use build-in function eval to simply test case and reduce duplicate code
@@ -152,3 +233,56 @@ def test_tasks_list_shift(dep_expr: str, flag: str):
 
     assert all([1 == len(getattr(t, reverse_direction_attr)) for t in tasks])
     assert all([task.code in getattr(t, reverse_direction_attr) for t in tasks])
+
+
+def test_add_duplicate(caplog):
+    """Test add task which code already in process definition."""
+    with ProcessDefinition("test_add_duplicate_workflow") as _:
+        TaskWithCode(name="test_task_1", task_type="test", code=123, version=1)
+        with caplog.at_level(logging.WARNING):
+            TaskWithCode(
+                name="test_task_duplicate_code", task_type="test", code=123, version=2
+            )
+        assert all(
+            [
+                caplog.text.startswith("WARNING  pydolphinscheduler"),
+                re.findall("already in process definition", caplog.text),
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "resources, expect",
+    [
+        (
+            ["/dev/test.py"],
+            [{"id": 1}],
+        ),
+        (
+            ["/dev/test.py", {"id": 2}],
+            [{"id": 1}, {"id": 2}],
+        ),
+    ],
+)
+@patch(
+    "pydolphinscheduler.core.task.Task.gen_code_and_version",
+    return_value=(123, 1),
+)
+@patch(
+    "pydolphinscheduler.core.resource.Resource.get_id_from_database",
+    return_value=1,
+)
+@patch(
+    "pydolphinscheduler.core.task.Task.user_name",
+    return_value="test_user",
+)
+def test_python_resource_list(
+    mock_code_version, mock_resource, mock_user_name, resources, expect
+):
+    """Test python task resource list."""
+    task = Task(
+        name="python_resource_list.",
+        task_type="PYTHON",
+        resource_list=resources,
+    )
+    assert task.resource_list == expect

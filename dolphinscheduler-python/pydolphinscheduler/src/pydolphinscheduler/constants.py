@@ -18,29 +18,6 @@
 """Constants for pydolphinscheduler."""
 
 
-class ProcessDefinitionReleaseState:
-    """Constants for :class:`pydolphinscheduler.core.process_definition.ProcessDefinition` release state."""
-
-    ONLINE: str = "ONLINE"
-    OFFLINE: str = "OFFLINE"
-
-
-class ProcessDefinitionDefault:
-    """Constants default value for :class:`pydolphinscheduler.core.process_definition.ProcessDefinition`."""
-
-    PROJECT: str = "project-pydolphin"
-    TENANT: str = "tenant_pydolphin"
-    USER: str = "userPythonGateway"
-    # TODO simple set password same as username
-    USER_PWD: str = "userPythonGateway"
-    USER_EMAIL: str = "userPythonGateway@dolphinscheduler.com"
-    USER_PHONE: str = "11111111111"
-    USER_STATE: int = 1
-    QUEUE: str = "queuePythonGateway"
-    WORKER_GROUP: str = "default"
-    TIME_ZONE: str = "Asia/Shanghai"
-
-
 class TaskPriority(str):
     """Constants for task priority."""
 
@@ -72,6 +49,15 @@ class TaskType(str):
     PYTHON = "PYTHON"
     SQL = "SQL"
     SUB_PROCESS = "SUB_PROCESS"
+    PROCEDURE = "PROCEDURE"
+    DATAX = "DATAX"
+    DEPENDENT = "DEPENDENT"
+    CONDITIONS = "CONDITIONS"
+    SWITCH = "SWITCH"
+    FLINK = "FLINK"
+    SPARK = "SPARK"
+    MR = "MR"
+    SAGEMAKER = "SAGEMAKER"
 
 
 class DefaultTaskCodeNum(str):
@@ -99,6 +85,7 @@ class Delimiter(str):
     DASH = "/"
     COLON = ":"
     UNDERSCORE = "_"
+    DIRECTION = "->"
 
 
 class Time(str):
@@ -114,3 +101,9 @@ class Time(str):
 
     FMT_STD_TIME = "%H:%M:%S"
     FMT_NO_COLON_TIME = "%H%M%S"
+
+
+class ResourceKey(str):
+    """Constants for key of resource."""
+
+    ID = "id"

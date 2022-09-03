@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.dolphinscheduler.api.exceptions;
 
 import org.apache.dolphinscheduler.api.enums.Status;
@@ -34,6 +35,12 @@ import org.springframework.web.method.HandlerMethod;
 public class ApiExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    @ExceptionHandler(ServiceException.class)
+    public Result exceptionHandler(ServiceException e, HandlerMethod hm) {
+        logger.error("ServiceException: ", e);
+        return new Result(e.getCode(), e.getMessage());
+    }
 
     @ExceptionHandler(Exception.class)
     public Result exceptionHandler(Exception e, HandlerMethod hm) {

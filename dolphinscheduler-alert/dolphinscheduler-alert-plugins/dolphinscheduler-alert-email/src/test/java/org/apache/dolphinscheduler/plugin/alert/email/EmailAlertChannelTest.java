@@ -43,7 +43,6 @@ public class EmailAlertChannelTest {
     @Test
     public void testProcess() {
         EmailAlertChannel emailAlertChannel = new EmailAlertChannel();
-        AlertData alertData = new AlertData();
         LinkedHashMap<String, Object> map1 = new LinkedHashMap<>();
         map1.put("mysql service name", "mysql200");
         map1.put("mysql address", "192.168.xx.xx");
@@ -54,10 +53,12 @@ public class EmailAlertChannelTest {
         maps.add(0, map1);
         String mapjson = JSONUtils.toJsonString(maps);
 
-        alertData.setId(10)
-                 .setContent(mapjson)
-                 .setLog("10")
-                 .setTitle("test");
+        AlertData alertData = AlertData.builder()
+                .id(10)
+                .content(mapjson)
+                .log("10")
+                .title("test")
+                .build();
         AlertInfo alertInfo = new AlertInfo();
         alertInfo.setAlertData(alertData);
         Map<String, String> paramsMap = PluginParamsTransfer.getPluginParamsMap(getEmailAlertParams());
@@ -132,7 +133,7 @@ public class EmailAlertChannelTest {
         emailShowTypeList.add(new ParamsOptions(ShowType.TABLE.getDescp(), ShowType.TABLE.getDescp(), false));
         emailShowTypeList.add(new ParamsOptions(ShowType.TEXT.getDescp(), ShowType.TEXT.getDescp(), false));
         emailShowTypeList.add(new ParamsOptions(ShowType.ATTACHMENT.getDescp(), ShowType.ATTACHMENT.getDescp(), false));
-        emailShowTypeList.add(new ParamsOptions(ShowType.TABLEATTACHMENT.getDescp(), ShowType.TABLEATTACHMENT.getDescp(), false));
+        emailShowTypeList.add(new ParamsOptions(ShowType.TABLE_ATTACHMENT.getDescp(), ShowType.TABLE_ATTACHMENT.getDescp(), false));
         RadioParam showType = RadioParam.newBuilder(AlertConstants.NAME_SHOW_TYPE, "showType")
                                         .setOptions(emailShowTypeList)
                                         .setValue(ShowType.TABLE.getDescp())

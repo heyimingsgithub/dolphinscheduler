@@ -17,23 +17,20 @@
 
 package org.apache.dolphinscheduler.plugin.task.api;
 
-import static org.apache.dolphinscheduler.spi.task.TaskConstants.EXIT_CODE_FAILURE;
-import static org.apache.dolphinscheduler.spi.task.TaskConstants.EXIT_CODE_KILL;
-
-import org.apache.dolphinscheduler.plugin.task.util.OSUtils;
-import org.apache.dolphinscheduler.spi.task.TaskConstants;
-import org.apache.dolphinscheduler.spi.task.TaskExecutionContextCacheManager;
-import org.apache.dolphinscheduler.spi.task.request.TaskRequest;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.commons.lang3.SystemUtils;
+import org.apache.dolphinscheduler.plugin.task.api.model.TaskResponse;
+import org.apache.dolphinscheduler.plugin.task.api.utils.AbstractCommandExecutorConstants;
+import org.apache.dolphinscheduler.plugin.task.api.utils.OSUtils;
+import org.apache.dolphinscheduler.spi.utils.PropertyUtils;
 import org.apache.dolphinscheduler.spi.utils.StringUtils;
+import org.slf4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -46,18 +43,18 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EXIT_CODE_FAILURE;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EXIT_CODE_KILL;
 
 /**
  * abstract command executor
  */
 public abstract class AbstractCommandExecutor {
+
     /**
-     * rules for extracting application ID
+     * rules for extracting Var Pool
      */
-    protected static final Pattern APPLICATION_REGEX = Pattern.compile(TaskConstants.APPLICATION_REGEX);
+    protected static final Pattern SETVALUE_REGEX = Pattern.compile(TaskConstants.SETVALUE_REGEX);
 
     protected StringBuilder varPool = new StringBuilder();
     /**
@@ -90,10 +87,10 @@ public abstract class AbstractCommandExecutor {
     /**
      * taskRequest
      */
-    protected TaskRequest taskRequest;
+    protected TaskExecutionContext taskRequest;
 
     public AbstractCommandExecutor(Consumer<LinkedBlockingQueue<String>> logHandler,
-                                   TaskRequest taskRequest,
+                                   TaskExecutionContext taskRequest,
                                    Logger logger) {
         this.logHandler = logHandler;
         this.taskRequest = taskRequest;
@@ -122,10 +119,16 @@ public abstract class AbstractCommandExecutor {
         // merge error information to standard output stream
         processBuilder.redirectErrorStream(true);
 
-        // setting up user to run commands
-        command.add("sudo");
-        command.add("-u");
-        command.add(taskRequest.getTenantCode());
+        // if sudo.enable=true,setting up user to run commands
+        if (OSUtils.isSudoEnable()) {
+            if (SystemUtils.IS_OS_LINUX && PropertyUtils.getBoolean(AbstractCommandExecutorConstants.TASK_RESOURCE_LIMIT_STATE)) {
+                generateCgroupCommand(command);
+            } else {
+                command.add("sudo");
+                command.add("-u");
+                command.add(taskRequest.getTenantCode());
+            }
+        }
         command.add(commandInterpreter());
         command.addAll(Collections.emptyList());
         command.add(commandFile);
@@ -135,6 +138,39 @@ public abstract class AbstractCommandExecutor {
         process = processBuilder.start();
 
         printCommand(command);
+    }
+
+    /**
+     * generate systemd command.
+     * eg: sudo systemd-run -q --scope -p CPUQuota=100% -p MemoryMax=200M --uid=root
+     * @param command command
+     */
+    private void generateCgroupCommand(List<String> command) {
+        Integer cpuQuota = taskRequest.getCpuQuota();
+        Integer memoryMax = taskRequest.getMemoryMax();
+
+        command.add("sudo");
+        command.add("systemd-run");
+        command.add("-q");
+        command.add("--scope");
+
+        if (cpuQuota == -1) {
+            command.add("-p");
+            command.add("CPUQuota=");
+        } else {
+            command.add("-p");
+            command.add(String.format("CPUQuota=%s%%", taskRequest.getCpuQuota()));
+        }
+
+        if (memoryMax == -1) {
+            command.add("-p");
+            command.add(String.format("MemoryMax=%s", "infinity"));
+        } else {
+            command.add("-p");
+            command.add(String.format("MemoryMax=%sM", taskRequest.getMemoryMax()));
+        }
+
+        command.add(String.format("--uid=%s", taskRequest.getTenantCode()));
     }
 
     public TaskResponse run(String execCommand) throws IOException, InterruptedException {
@@ -183,16 +219,12 @@ public abstract class AbstractCommandExecutor {
 
         // if SHELL task exit
         if (status) {
-            // set appIds
-            List<String> appIds = getAppIds(taskRequest.getLogPath());
-            result.setAppIds(String.join(TaskConstants.COMMA, appIds));
 
             // SHELL task state
             result.setExitStatusCode(process.exitValue());
 
         } else {
-            logger.error("process has failure , exitStatusCode:{}, processExitValue:{}, ready to kill ...",
-                    result.getExitStatusCode(), process.exitValue());
+            logger.error("process has failure, the task timeout configuration value is:{}, ready to kill ...", taskRequest.getTaskTimeout());
             ProcessUtils.kill(taskRequest);
             result.setExitStatusCode(EXIT_CODE_FAILURE);
         }
@@ -307,15 +339,14 @@ public abstract class AbstractCommandExecutor {
      * @param process process
      */
     private void parseProcessOutput(Process process) {
-        String threadLoggerInfoName = String.format(TaskConstants.TASK_LOGGER_THREAD_NAME + "-%s", taskRequest.getTaskAppId());
-        ExecutorService getOutputLogService = newDaemonSingleThreadExecutor(threadLoggerInfoName + "-" + "getOutputLogService");
+        String threadLoggerInfoName = taskRequest.getTaskLogName();
+        ExecutorService getOutputLogService = newDaemonSingleThreadExecutor(threadLoggerInfoName);
         getOutputLogService.submit(() -> {
             try (BufferedReader inReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
-                logBuffer.add("welcome to use bigdata scheduling system...");
                 while ((line = inReader.readLine()) != null) {
-                    if (line.startsWith("${setValue(")) {
-                        varPool.append(line, "${setValue(".length(), line.length() - 2);
+                    if (line.startsWith("${setValue(") || line.startsWith("#{setValue(")) {
+                        varPool.append(findVarPool(line));
                         varPool.append("$VarPool$");
                     } else {
                         logBuffer.add(line);
@@ -353,64 +384,15 @@ public abstract class AbstractCommandExecutor {
     }
 
     /**
-     * get app links
+     * find var pool
      *
-     * @param logPath log path
-     * @return app id list
+     * @param line
+     * @return
      */
-    private List<String> getAppIds(String logPath) {
-        List<String> logs = convertFile2List(logPath);
-
-        List<String> appIds = new ArrayList<>();
-        /*
-         * analysis log?get submited yarn application id
-         */
-        for (String log : logs) {
-            String appId = findAppId(log);
-            if (StringUtils.isNotEmpty(appId) && !appIds.contains(appId)) {
-                logger.info("find app id: {}", appId);
-                appIds.add(appId);
-            }
-        }
-        return appIds;
-    }
-
-    /**
-     * convert file to list
-     *
-     * @param filename file name
-     * @return line list
-     */
-    private List<String> convertFile2List(String filename) {
-        List<String> lineList = new ArrayList<>(100);
-        File file = new File(filename);
-
-        if (!file.exists()) {
-            return lineList;
-        }
-
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(filename), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                lineList.add(line);
-            }
-        } catch (Exception e) {
-            logger.error(String.format("read file: %s failed : ", filename), e);
-        }
-
-        return lineList;
-    }
-
-    /**
-     * find app id
-     *
-     * @param line line
-     * @return appid
-     */
-    private String findAppId(String line) {
-        Matcher matcher = APPLICATION_REGEX.matcher(line);
+    private String findVarPool(String line) {
+        Matcher matcher = SETVALUE_REGEX.matcher(line);
         if (matcher.find()) {
-            return matcher.group();
+            return matcher.group(1);
         }
         return null;
     }

@@ -44,7 +44,7 @@ public interface UsersService {
      * @throws Exception exception
      */
     Map<String, Object> createUser(User loginUser, String userName, String userPassword, String email,
-                                   int tenantId, String phone, String queue, int state) throws IOException;
+                                   int tenantId, String phone, String queue, int state) throws Exception;
 
     User createUser(String userName, String userPassword, String email,
                     int tenantId, String phone, String queue, int state);
@@ -130,7 +130,7 @@ public interface UsersService {
      * @throws Exception exception
      */
     Map<String, Object> updateUser(User loginUser, int userId, String userName, String userPassword, String email,
-                                   int tenantId, String phone, String queue, int state) throws IOException;
+                                   int tenantId, String phone, String queue, int state, String timeZone) throws IOException;
 
     /**
      * delete user
@@ -158,10 +158,10 @@ public interface UsersService {
      *
      * @param loginUser login user
      * @param userId user id
-     * @param projectCodes project code array
+     * @param projectCode project code
      * @return grant result code
      */
-    Map<String, Object> grantProjectByCode(User loginUser, int userId, String projectCodes);
+    Map<String, Object> grantProjectByCode(User loginUser, int userId, long projectCode);
 
     /**
      * revoke the project permission for specified user.
@@ -192,6 +192,17 @@ public interface UsersService {
      * @return grant result code
      */
     Map<String, Object> grantUDFFunction(User loginUser, int userId, String udfIds);
+
+
+    /**
+     * grant namespace
+     *
+     * @param loginUser login user
+     * @param userId user id
+     * @param namespaceIds namespace id array
+     * @return grant result code
+     */
+    Map<String, Object> grantNamespaces(User loginUser, int userId, String namespaceIds);
 
 
     /**
@@ -242,20 +253,20 @@ public interface UsersService {
      * unauthorized user
      *
      * @param loginUser login user
-     * @param alertgroupId alert group id
+     * @param alertGroupId alert group id
      * @return unauthorize result code
      */
-    Map<String, Object> unauthorizedUser(User loginUser, Integer alertgroupId);
+    Map<String, Object> unauthorizedUser(User loginUser, Integer alertGroupId);
 
 
     /**
      * authorized user
      *
      * @param loginUser login user
-     * @param alertgroupId alert group id
+     * @param alertGroupId alert group id
      * @return authorized result code
      */
-    Map<String, Object> authorizedUser(User loginUser, Integer alertgroupId);
+    Map<String, Object> authorizedUser(User loginUser, Integer alertGroupId);
 
     /**
      * registry user, default state is 0, default tenant_id is 1, no phone, no queue
@@ -286,4 +297,22 @@ public interface UsersService {
      * @return create result code
      */
     Map<String, Object> batchActivateUser(User loginUser, List<String> userNames);
+
+    /**
+     * Make sure user with given name exists, and create the user if not exists
+     * <p>
+     * ONLY for python gateway server, and should not use this in web ui function
+     *
+     * @param userName     user name
+     * @param userPassword user password
+     * @param email        user email
+     * @param phone        user phone
+     * @param tenantCode   tenant code
+     * @param queue        queue
+     * @param state        state
+     * @return create result code
+     */
+    User createUserIfNotExists(String userName, String userPassword, String email, String phone, String tenantCode,
+                               String queue,
+                               int state) throws IOException;
 }

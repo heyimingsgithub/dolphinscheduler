@@ -20,28 +20,28 @@ package org.apache.dolphinscheduler.dao.entity;
 import org.apache.dolphinscheduler.common.Constants;
 import org.apache.dolphinscheduler.common.enums.Flag;
 import org.apache.dolphinscheduler.common.enums.Priority;
-import org.apache.dolphinscheduler.common.enums.TaskTimeoutStrategy;
+import org.apache.dolphinscheduler.common.enums.TaskExecuteType;
+import org.apache.dolphinscheduler.plugin.task.api.enums.TaskTimeoutStrategy;
 import org.apache.dolphinscheduler.common.enums.TimeoutFlag;
-import org.apache.dolphinscheduler.common.process.Property;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
+import org.apache.dolphinscheduler.plugin.task.api.model.Property;
 
-import org.apache.commons.lang.StringUtils;
-
+import org.apache.commons.collections4.CollectionUtils;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.google.common.base.Strings;
 
 /**
  * task definition
@@ -104,7 +104,7 @@ public class TaskDefinition {
     private List<Property> taskParamList;
 
     /**
-     * user define parameter map
+     * user defined parameter map
      */
     @TableField(exist = false)
     private Map<String, String> taskParamMap;
@@ -180,13 +180,11 @@ public class TaskDefinition {
     /**
      * create time
      */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createTime;
 
     /**
      * update time
      */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date updateTime;
 
     /**
@@ -199,6 +197,25 @@ public class TaskDefinition {
      * task group id
      */
     private int taskGroupId;
+    /**
+     * task group id
+     */
+    private int taskGroupPriority;
+
+    /**
+     * cpu quota
+     */
+    private Integer cpuQuota;
+
+    /**
+     * max memory
+     */
+    private Integer memoryMax;
+
+    /**
+     * task execute type
+     */
+    private TaskExecuteType taskExecuteType;
 
     public TaskDefinition() {
     }
@@ -306,11 +323,19 @@ public class TaskDefinition {
     }
 
     public Map<String, String> getTaskParamMap() {
-        if (taskParamMap == null && StringUtils.isNotEmpty(taskParams)) {
+        if (taskParamMap == null && !Strings.isNullOrEmpty(taskParams)) {
             JsonNode localParams = JSONUtils.parseObject(taskParams).findValue("localParams");
-            if (localParams != null) {
+
+            //If a jsonNode is null, not only use !=null, but also it should use the isNull method to be estimated.
+            if (localParams != null && !localParams.isNull()) {
                 List<Property> propList = JSONUtils.toList(localParams.toString(), Property.class);
-                taskParamMap = propList.stream().collect(Collectors.toMap(Property::getProp, Property::getValue));
+
+                if (CollectionUtils.isNotEmpty(propList)) {
+                    taskParamMap = new HashMap<>();
+                    for (Property property : propList) {
+                        taskParamMap.put(property.getProp(), property.getValue());
+                    }
+                }
             }
         }
         return taskParamMap;
@@ -448,6 +473,30 @@ public class TaskDefinition {
         this.environmentCode = environmentCode;
     }
 
+    public Integer getCpuQuota() {
+        return cpuQuota == null ? -1 : cpuQuota;
+    }
+
+    public void setCpuQuota(Integer cpuQuota) {
+        this.cpuQuota = cpuQuota;
+    }
+
+    public Integer getMemoryMax() {
+        return memoryMax == null ? -1 : memoryMax;
+    }
+
+    public void setMemoryMax(Integer memoryMax) {
+        this.memoryMax = memoryMax;
+    }
+
+    public TaskExecuteType getTaskExecuteType() {
+        return taskExecuteType;
+    }
+
+    public void setTaskExecuteType(TaskExecuteType taskExecuteType) {
+        this.taskExecuteType = taskExecuteType;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null) {
@@ -455,20 +504,27 @@ public class TaskDefinition {
         }
         TaskDefinition that = (TaskDefinition) o;
         return failRetryTimes == that.failRetryTimes
-                && failRetryInterval == that.failRetryInterval
-                && timeout == that.timeout
-                && delayTime == that.delayTime
-                && Objects.equals(name, that.name)
-                && Objects.equals(description, that.description)
-                && Objects.equals(taskType, that.taskType)
-                && Objects.equals(taskParams, that.taskParams)
-                && flag == that.flag
-                && taskPriority == that.taskPriority
-                && Objects.equals(workerGroup, that.workerGroup)
-                && timeoutFlag == that.timeoutFlag
-                && timeoutNotifyStrategy == that.timeoutNotifyStrategy
-                && Objects.equals(resourceIds, that.resourceIds)
-                && environmentCode == that.environmentCode;
+            && failRetryInterval == that.failRetryInterval
+            && timeout == that.timeout
+            && delayTime == that.delayTime
+            && Objects.equals(name, that.name)
+            && Objects.equals(description, that.description)
+            && Objects.equals(taskType, that.taskType)
+            && Objects.equals(taskParams, that.taskParams)
+            && flag == that.flag
+            && taskPriority == that.taskPriority
+            && Objects.equals(workerGroup, that.workerGroup)
+            && timeoutFlag == that.timeoutFlag
+            && timeoutNotifyStrategy == that.timeoutNotifyStrategy
+            && (Objects.equals(resourceIds, that.resourceIds)
+            || ("".equals(resourceIds) && that.resourceIds == null)
+            || ("".equals(that.resourceIds) && resourceIds == null))
+            && environmentCode == that.environmentCode
+            && taskGroupId == that.taskGroupId
+            && taskGroupPriority == that.taskGroupPriority
+            && Objects.equals(cpuQuota, that.cpuQuota)
+            && Objects.equals(memoryMax, that.memoryMax)
+            && Objects.equals(taskExecuteType, that.taskExecuteType);
     }
 
     @Override
@@ -492,14 +548,27 @@ public class TaskDefinition {
                 + ", workerGroup='" + workerGroup + '\''
                 + ", failRetryTimes=" + failRetryTimes
                 + ", environmentCode='" + environmentCode + '\''
+                + ", taskGroupId='" + taskGroupId + '\''
+                + ", taskGroupPriority='" + taskGroupPriority + '\''
                 + ", failRetryInterval=" + failRetryInterval
                 + ", timeoutFlag=" + timeoutFlag
                 + ", timeoutNotifyStrategy=" + timeoutNotifyStrategy
                 + ", timeout=" + timeout
                 + ", delayTime=" + delayTime
                 + ", resourceIds='" + resourceIds + '\''
+                + ", cpuQuota=" + cpuQuota
+                + ", memoryMax=" + memoryMax
+                + ", taskExecuteType=" + taskExecuteType
                 + ", createTime=" + createTime
                 + ", updateTime=" + updateTime
                 + '}';
+    }
+
+    public int getTaskGroupPriority() {
+        return taskGroupPriority;
+    }
+
+    public void setTaskGroupPriority(int taskGroupPriority) {
+        this.taskGroupPriority = taskGroupPriority;
     }
 }

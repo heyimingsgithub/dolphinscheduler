@@ -14,11 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.dolphinscheduler.dao.mapper;
 
-import org.apache.dolphinscheduler.common.enums.ExecutionStatus;
 import org.apache.dolphinscheduler.common.enums.Flag;
 import org.apache.dolphinscheduler.common.enums.ReleaseState;
+import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
 import org.apache.dolphinscheduler.dao.BaseDaoTest;
 import org.apache.dolphinscheduler.dao.entity.ExecuteStatusCount;
 import org.apache.dolphinscheduler.dao.entity.ProcessDefinition;
@@ -28,6 +29,7 @@ import org.apache.dolphinscheduler.dao.entity.Project;
 import java.util.Date;
 import java.util.List;
 
+import org.apache.dolphinscheduler.plugin.task.api.enums.TaskExecutionStatus;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,7 +58,7 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
         processInstance.setProcessDefinitionCode(1L);
         processInstance.setStartTime(start);
         processInstance.setEndTime(end);
-        processInstance.setState(ExecutionStatus.SUCCESS);
+        processInstance.setState(WorkflowExecutionStatus.SUCCESS);
 
         processInstanceMapper.insert(processInstance);
         return processInstance;
@@ -68,14 +70,14 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
      * @return ProcessInstance
      */
     private ProcessInstance insertOne() {
-        //insertOne
+        // insertOne
         ProcessInstance processInstance = new ProcessInstance();
         Date start = new Date(2019 - 1900, 1 - 1, 1, 0, 10, 0);
         Date end = new Date(2019 - 1900, 1 - 1, 1, 1, 0, 0);
         processInstance.setProcessDefinitionCode(1L);
         processInstance.setStartTime(start);
         processInstance.setEndTime(end);
-        processInstance.setState(ExecutionStatus.SUBMITTED_SUCCESS);
+        processInstance.setState(WorkflowExecutionStatus.SUBMITTED_SUCCESS);
 
         processInstanceMapper.insert(processInstance);
         return processInstance;
@@ -86,9 +88,9 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
      */
     @Test
     public void testUpdate() {
-        //insertOne
+        // insertOne
         ProcessInstance processInstanceMap = insertOne();
-        //update
+        // update
         int update = processInstanceMapper.updateById(processInstanceMap);
         Assert.assertEquals(1, update);
         processInstanceMapper.deleteById(processInstanceMap.getId());
@@ -110,7 +112,7 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
     @Test
     public void testQuery() {
         ProcessInstance processInstance = insertOne();
-        //query
+        // query
         List<ProcessInstance> dataSources = processInstanceMapper.selectList(null);
         Assert.assertNotEquals(dataSources.size(), 0);
         processInstanceMapper.deleteById(processInstance.getId());
@@ -136,12 +138,12 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
     public void testQueryByHostAndStates() {
         ProcessInstance processInstance = insertOne();
         processInstance.setHost("192.168.2.155");
-        processInstance.setState(ExecutionStatus.RUNNING_EXECUTION);
+        processInstance.setState(WorkflowExecutionStatus.RUNNING_EXECUTION);
         processInstanceMapper.updateById(processInstance);
 
         int[] stateArray = new int[]{
-                ExecutionStatus.RUNNING_EXECUTION.ordinal(),
-                ExecutionStatus.SUCCESS.ordinal()};
+                TaskExecutionStatus.RUNNING_EXECUTION.getCode(),
+                TaskExecutionStatus.SUCCESS.getCode()};
 
         List<ProcessInstance> processInstances = processInstanceMapper.queryByHostAndStatus(null, stateArray);
 
@@ -155,10 +157,9 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
     @Test
     public void testQueryProcessInstanceListPaging() {
 
-
         int[] stateArray = new int[]{
-                ExecutionStatus.RUNNING_EXECUTION.ordinal(),
-                ExecutionStatus.SUCCESS.ordinal()};
+                WorkflowExecutionStatus.RUNNING_EXECUTION.getCode(),
+                WorkflowExecutionStatus.SUCCESS.getCode()};
 
         ProcessDefinition processDefinition = new ProcessDefinition();
         processDefinition.setCode(1L);
@@ -170,12 +171,11 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
 
         ProcessInstance processInstance = insertOne();
         processInstance.setProcessDefinitionCode(processDefinition.getCode());
-        processInstance.setState(ExecutionStatus.RUNNING_EXECUTION);
+        processInstance.setState(WorkflowExecutionStatus.RUNNING_EXECUTION);
         processInstance.setIsSubProcess(Flag.NO);
         processInstance.setStartTime(new Date());
 
         processInstanceMapper.updateById(processInstance);
-
 
         Page<ProcessInstance> page = new Page(1, 3);
 
@@ -188,8 +188,7 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
                 stateArray,
                 processInstance.getHost(),
                 null,
-                null
-        );
+                null);
         Assert.assertNotEquals(processInstanceIPage.getTotal(), 0);
 
         processDefinitionMapper.deleteById(processDefinition.getId());
@@ -203,12 +202,12 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
     public void testSetFailoverByHostAndStateArray() {
 
         int[] stateArray = new int[]{
-                ExecutionStatus.RUNNING_EXECUTION.ordinal(),
-                ExecutionStatus.SUCCESS.ordinal()};
+                WorkflowExecutionStatus.RUNNING_EXECUTION.ordinal(),
+                WorkflowExecutionStatus.SUCCESS.ordinal()};
 
         ProcessInstance processInstance = insertOne();
 
-        processInstance.setState(ExecutionStatus.RUNNING_EXECUTION);
+        processInstance.setState(WorkflowExecutionStatus.RUNNING_EXECUTION);
         processInstance.setHost("192.168.2.220");
         processInstanceMapper.updateById(processInstance);
         String host = processInstance.getHost();
@@ -226,17 +225,17 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
     @Test
     public void testUpdateProcessInstanceByState() {
 
-
         ProcessInstance processInstance = insertOne();
 
-        processInstance.setState(ExecutionStatus.RUNNING_EXECUTION);
+        processInstance.setState(WorkflowExecutionStatus.RUNNING_EXECUTION);
         processInstanceMapper.updateById(processInstance);
-        processInstanceMapper.updateProcessInstanceByState(ExecutionStatus.RUNNING_EXECUTION, ExecutionStatus.SUCCESS);
+        processInstanceMapper.updateProcessInstanceByState(WorkflowExecutionStatus.RUNNING_EXECUTION,
+                WorkflowExecutionStatus.SUCCESS);
 
         ProcessInstance processInstance1 = processInstanceMapper.selectById(processInstance.getId());
 
         processInstanceMapper.deleteById(processInstance.getId());
-        Assert.assertEquals(ExecutionStatus.SUCCESS, processInstance1.getState());
+        Assert.assertEquals(WorkflowExecutionStatus.SUCCESS, processInstance1.getState());
 
     }
 
@@ -266,8 +265,8 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
 
         Long[] projectCodes = new Long[]{processDefinition.getProjectCode()};
 
-        List<ExecuteStatusCount> executeStatusCounts = processInstanceMapper.countInstanceStateByUser(null, null, projectCodes);
-
+        List<ExecuteStatusCount> executeStatusCounts =
+                processInstanceMapper.countInstanceStateByProjectCodes(null, null, projectCodes);
 
         Assert.assertNotEquals(executeStatusCounts.size(), 0);
 
@@ -284,11 +283,12 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
         ProcessInstance processInstance = insertOne();
         ProcessInstance processInstance1 = insertOne();
 
-
-        List<ProcessInstance> processInstances = processInstanceMapper.queryByProcessDefineCode(processInstance.getProcessDefinitionCode(), 1);
+        List<ProcessInstance> processInstances =
+                processInstanceMapper.queryByProcessDefineCode(processInstance.getProcessDefinitionCode(), 1);
         Assert.assertEquals(1, processInstances.size());
 
-        processInstances = processInstanceMapper.queryByProcessDefineCode(processInstance.getProcessDefinitionCode(), 2);
+        processInstances =
+                processInstanceMapper.queryByProcessDefineCode(processInstance.getProcessDefinitionCode(), 2);
         Assert.assertEquals(2, processInstances.size());
 
         processInstanceMapper.deleteById(processInstance.getId());
@@ -304,7 +304,8 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
         processInstance.setScheduleTime(new Date());
         processInstanceMapper.updateById(processInstance);
 
-        ProcessInstance processInstance1 = processInstanceMapper.queryLastSchedulerProcess(processInstance.getProcessDefinitionCode(), null, null);
+        ProcessInstance processInstance1 =
+                processInstanceMapper.queryLastSchedulerProcess(processInstance.getProcessDefinitionCode(), null, null);
         Assert.assertNotEquals(processInstance1, null);
         processInstanceMapper.deleteById(processInstance.getId());
     }
@@ -315,14 +316,15 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
     @Test
     public void testQueryLastRunningProcess() {
         ProcessInstance processInstance = insertOne();
-        processInstance.setState(ExecutionStatus.RUNNING_EXECUTION);
+        processInstance.setState(WorkflowExecutionStatus.RUNNING_EXECUTION);
         processInstanceMapper.updateById(processInstance);
 
         int[] stateArray = new int[]{
-                ExecutionStatus.RUNNING_EXECUTION.ordinal(),
-                ExecutionStatus.SUBMITTED_SUCCESS.ordinal()};
+                WorkflowExecutionStatus.RUNNING_EXECUTION.ordinal(),
+                WorkflowExecutionStatus.SUBMITTED_SUCCESS.ordinal()};
 
-        ProcessInstance processInstance1 = processInstanceMapper.queryLastRunningProcess(processInstance.getProcessDefinitionCode(), null, null, stateArray);
+        ProcessInstance processInstance1 = processInstanceMapper
+                .queryLastRunningProcess(processInstance.getProcessDefinitionCode(), null, null, stateArray);
 
         Assert.assertNotEquals(processInstance1, null);
         processInstanceMapper.deleteById(processInstance.getId());
@@ -338,19 +340,18 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
 
         Date start = new Date(2019 - 1900, 1 - 1, 01, 0, 0, 0);
         Date end = new Date(2019 - 1900, 1 - 1, 01, 5, 0, 0);
-        ProcessInstance processInstance1 = processInstanceMapper.queryLastManualProcess(processInstance.getProcessDefinitionCode(), start, end
-        );
+        ProcessInstance processInstance1 =
+                processInstanceMapper.queryLastManualProcess(processInstance.getProcessDefinitionCode(), start, end);
         Assert.assertEquals(processInstance1.getId(), processInstance.getId());
 
         start = new Date(2019 - 1900, 1 - 1, 01, 1, 0, 0);
-        processInstance1 = processInstanceMapper.queryLastManualProcess(processInstance.getProcessDefinitionCode(), start, end
-        );
+        processInstance1 =
+                processInstanceMapper.queryLastManualProcess(processInstance.getProcessDefinitionCode(), start, end);
         Assert.assertNull(processInstance1);
 
         processInstanceMapper.deleteById(processInstance.getId());
 
     }
-
 
     /**
      * test whether it is in descending order by running duration
@@ -358,7 +359,8 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
     private boolean isSortedByDuration(List<ProcessInstance> processInstances) {
         for (int i = 1; i < processInstances.size(); i++) {
             long d1 = processInstances.get(i).getEndTime().getTime() - processInstances.get(i).getStartTime().getTime();
-            long d2 = processInstances.get(i - 1).getEndTime().getTime() - processInstances.get(i - 1).getStartTime().getTime();
+            long d2 = processInstances.get(i - 1).getEndTime().getTime()
+                    - processInstances.get(i - 1).getStartTime().getTime();
             if (d1 > d2) {
                 return false;
             }
@@ -382,11 +384,12 @@ public class ProcessInstanceMapperTest extends BaseDaoTest {
         ProcessInstance processInstance3 = insertOne(startTime3, endTime3);
         Date start = new Date(2020, 1, 1, 1, 1, 1);
         Date end = new Date(2021, 1, 1, 1, 1, 1);
-        List<ProcessInstance> processInstances = processInstanceMapper.queryTopNProcessInstance(2, start, end, ExecutionStatus.SUCCESS,0L);
+        List<ProcessInstance> processInstances =
+                processInstanceMapper.queryTopNProcessInstance(2, start, end, WorkflowExecutionStatus.SUCCESS, 0L);
         Assert.assertEquals(2, processInstances.size());
         Assert.assertTrue(isSortedByDuration(processInstances));
         for (ProcessInstance processInstance : processInstances) {
-            Assert.assertTrue(processInstance.getState().typeIsSuccess());
+            Assert.assertTrue(processInstance.getState().isSuccess());
         }
         processInstanceMapper.deleteById(processInstance1.getId());
         processInstanceMapper.deleteById(processInstance2.getId());

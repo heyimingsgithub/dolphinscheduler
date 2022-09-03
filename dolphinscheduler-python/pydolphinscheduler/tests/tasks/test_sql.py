@@ -25,43 +25,40 @@ import pytest
 from pydolphinscheduler.tasks.sql import Sql, SqlType
 
 
-@patch(
-    "pydolphinscheduler.core.task.Task.gen_code_and_version",
-    return_value=(123, 1),
-)
-@patch(
-    "pydolphinscheduler.tasks.sql.Sql.get_datasource_info",
-    return_value=({"id": 1, "type": "mock_type"}),
-)
-def test_get_datasource_detail(mock_datasource, mock_code_version):
-    """Test :func:`get_datasource_type` and :func:`get_datasource_id` can return expect value."""
-    name = "test_get_sql_type"
-    datasource_name = "test_datasource"
-    sql = "select 1"
-    task = Sql(name, datasource_name, sql)
-    assert 1 == task.get_datasource_id()
-    assert "mock_type" == task.get_datasource_type()
-
-
 @pytest.mark.parametrize(
-    "sql, sql_type",
+    "sql, param_sql_type, sql_type",
     [
-        ("select 1", SqlType.SELECT),
-        (" select 1", SqlType.SELECT),
-        (" select 1 ", SqlType.SELECT),
-        (" select 'insert' ", SqlType.SELECT),
-        (" select 'insert ' ", SqlType.SELECT),
-        ("with tmp as (select 1) select * from tmp ", SqlType.SELECT),
-        ("insert into table_name(col1, col2) value (val1, val2)", SqlType.NOT_SELECT),
+        ("select 1", None, SqlType.SELECT),
+        (" select 1", None, SqlType.SELECT),
+        (" select 1 ", None, SqlType.SELECT),
+        (" select 'insert' ", None, SqlType.SELECT),
+        (" select 'insert ' ", None, SqlType.SELECT),
+        ("with tmp as (select 1) select * from tmp ", None, SqlType.SELECT),
         (
-            "insert into table_name(select, col2) value ('select', val2)",
+            "insert into table_name(col1, col2) value (val1, val2)",
+            None,
             SqlType.NOT_SELECT,
         ),
-        ("update table_name SET col1=val1 where col1=val2", SqlType.NOT_SELECT),
-        ("update table_name SET col1='select' where col1=val2", SqlType.NOT_SELECT),
-        ("delete from table_name where id < 10", SqlType.NOT_SELECT),
-        ("delete from table_name where id < 10", SqlType.NOT_SELECT),
-        ("alter table table_name add column col1 int", SqlType.NOT_SELECT),
+        (
+            "insert into table_name(select, col2) value ('select', val2)",
+            None,
+            SqlType.NOT_SELECT,
+        ),
+        ("update table_name SET col1=val1 where col1=val2", None, SqlType.NOT_SELECT),
+        (
+            "update table_name SET col1='select' where col1=val2",
+            None,
+            SqlType.NOT_SELECT,
+        ),
+        ("delete from table_name where id < 10", None, SqlType.NOT_SELECT),
+        ("delete from table_name where id < 10", None, SqlType.NOT_SELECT),
+        ("alter table table_name add column col1 int", None, SqlType.NOT_SELECT),
+        ("create table table_name2 (col1 int)", None, SqlType.NOT_SELECT),
+        ("truncate table  table_name", None, SqlType.NOT_SELECT),
+        ("create table table_name2 (col1 int)", SqlType.SELECT, SqlType.SELECT),
+        ("select 1", SqlType.NOT_SELECT, SqlType.NOT_SELECT),
+        ("create table table_name2 (col1 int)", SqlType.NOT_SELECT, SqlType.NOT_SELECT),
+        ("select 1", SqlType.SELECT, SqlType.SELECT),
     ],
 )
 @patch(
@@ -69,28 +66,66 @@ def test_get_datasource_detail(mock_datasource, mock_code_version):
     return_value=(123, 1),
 )
 @patch(
-    "pydolphinscheduler.tasks.sql.Sql.get_datasource_info",
+    "pydolphinscheduler.core.database.Database.get_database_info",
     return_value=({"id": 1, "type": "mock_type"}),
 )
-def test_get_sql_type(mock_datasource, mock_code_version, sql, sql_type):
+def test_get_sql_type(
+    mock_datasource, mock_code_version, sql, param_sql_type, sql_type
+):
     """Test property sql_type could return correct type."""
     name = "test_get_sql_type"
     datasource_name = "test_datasource"
-    task = Sql(name, datasource_name, sql)
+    task = Sql(name, datasource_name, sql, sql_type=param_sql_type)
     assert (
         sql_type == task.sql_type
     ), f"Sql {sql} expect sql type is {sql_type} but got {task.sql_type}"
 
 
+@pytest.mark.parametrize(
+    "attr, expect",
+    [
+        (
+            {"datasource_name": "datasource_name", "sql": "select 1"},
+            {
+                "sql": "select 1",
+                "type": "MYSQL",
+                "datasource": 1,
+                "sqlType": "0",
+                "preStatements": [],
+                "postStatements": [],
+                "displayRows": 10,
+                "localParams": [],
+                "resourceList": [],
+                "dependence": {},
+                "waitStartTimeout": {},
+                "conditionResult": {"successNode": [""], "failedNode": [""]},
+            },
+        )
+    ],
+)
 @patch(
-    "pydolphinscheduler.tasks.sql.Sql.get_datasource_info",
+    "pydolphinscheduler.core.task.Task.gen_code_and_version",
+    return_value=(123, 1),
+)
+@patch(
+    "pydolphinscheduler.core.database.Database.get_database_info",
     return_value=({"id": 1, "type": "MYSQL"}),
 )
-def test_sql_to_dict(mock_datasource):
-    """Test task sql function to_dict."""
+def test_property_task_params(mock_datasource, mock_code_version, attr, expect):
+    """Test task sql task property."""
+    task = Sql("test-sql-task-params", **attr)
+    assert expect == task.task_params
+
+
+@patch(
+    "pydolphinscheduler.core.database.Database.get_database_info",
+    return_value=({"id": 1, "type": "MYSQL"}),
+)
+def test_sql_get_define(mock_datasource):
+    """Test task sql function get_define."""
     code = 123
     version = 1
-    name = "test_sql_dict"
+    name = "test_sql_get_define"
     command = "select 1"
     datasource_name = "test_datasource"
     expect = {
@@ -104,7 +139,7 @@ def test_sql_to_dict(mock_datasource):
             "type": "MYSQL",
             "datasource": 1,
             "sql": command,
-            "sqlType": SqlType.SELECT,
+            "sqlType": "0",
             "displayRows": 10,
             "preStatements": [],
             "postStatements": [],
@@ -128,4 +163,4 @@ def test_sql_to_dict(mock_datasource):
         return_value=(code, version),
     ):
         task = Sql(name, datasource_name, command)
-        assert task.to_dict() == expect
+        assert task.get_define() == expect

@@ -17,12 +17,18 @@
 
 package org.apache.dolphinscheduler.remote.command.alert;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.apache.dolphinscheduler.remote.command.Command;
 import org.apache.dolphinscheduler.remote.command.CommandType;
 import org.apache.dolphinscheduler.remote.utils.JsonSerializer;
 
 import java.io.Serializable;
 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class AlertSendRequestCommand implements Serializable {
 
     private int groupId;
@@ -31,39 +37,7 @@ public class AlertSendRequestCommand implements Serializable {
 
     private String content;
 
-    public int getGroupId() {
-        return groupId;
-    }
-
-    public void setGroupId(int groupId) {
-        this.groupId = groupId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public AlertSendRequestCommand(){
-
-    }
-
-    public AlertSendRequestCommand(int groupId, String title, String content) {
-        this.groupId = groupId;
-        this.title = title;
-        this.content = content;
-    }
+    private int warnType;
 
     /**
      * package request command

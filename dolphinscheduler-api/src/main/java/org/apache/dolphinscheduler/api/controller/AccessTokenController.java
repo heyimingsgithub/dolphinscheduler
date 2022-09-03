@@ -20,6 +20,7 @@ package org.apache.dolphinscheduler.api.controller;
 import static org.apache.dolphinscheduler.api.enums.Status.CREATE_ACCESS_TOKEN_ERROR;
 import static org.apache.dolphinscheduler.api.enums.Status.DELETE_ACCESS_TOKEN_ERROR;
 import static org.apache.dolphinscheduler.api.enums.Status.GENERATE_TOKEN_ERROR;
+import static org.apache.dolphinscheduler.api.enums.Status.QUERY_ACCESSTOKEN_BY_USER_ERROR;
 import static org.apache.dolphinscheduler.api.enums.Status.QUERY_ACCESSTOKEN_LIST_PAGING_ERROR;
 import static org.apache.dolphinscheduler.api.enums.Status.UPDATE_ACCESS_TOKEN_ERROR;
 
@@ -30,6 +31,8 @@ import org.apache.dolphinscheduler.api.utils.Result;
 import org.apache.dolphinscheduler.common.Constants;
 import org.apache.dolphinscheduler.common.utils.ParameterUtils;
 import org.apache.dolphinscheduler.dao.entity.User;
+
+import springfox.documentation.annotations.ApiIgnore;
 
 import java.util.Map;
 
@@ -50,8 +53,6 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
-import springfox.documentation.annotations.ApiIgnore;
-
 
 /**
  * access token controller
@@ -70,10 +71,15 @@ public class AccessTokenController extends BaseController {
      * @param loginUser login user
      * @param userId token for user id
      * @param expireTime expire time for the token
-     * @param token token
+     * @param token token string (if it is absent, it will be automatically generated)
      * @return create result state code
      */
-    @ApiIgnore
+    @ApiOperation(value = "createToken", notes = "CREATE_TOKEN_NOTES")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "userId", value = "USER_ID", required = true, dataTypeClass = int.class),
+            @ApiImplicitParam(name = "expireTime", value = "EXPIRE_TIME", required = true, dataTypeClass = String.class, example = "2021-12-31 00:00:00"),
+            @ApiImplicitParam(name = "token", value = "TOKEN", required = false, dataTypeClass = String.class, example = "xxxx")
+    })
     @PostMapping()
     @ResponseStatus(HttpStatus.CREATED)
     @ApiException(CREATE_ACCESS_TOKEN_ERROR)
@@ -81,10 +87,9 @@ public class AccessTokenController extends BaseController {
     public Result createToken(@ApiIgnore @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
                               @RequestParam(value = "userId") int userId,
                               @RequestParam(value = "expireTime") String expireTime,
-                              @RequestParam(value = "token") String token) {
+                              @RequestParam(value = "token", required = false) String token) {
 
-        Map<String, Object> result = accessTokenService.createToken(loginUser, userId, expireTime, token);
-        return returnDataList(result);
+        return accessTokenService.createToken(loginUser, userId, expireTime, token);
     }
 
     /**
@@ -118,9 +123,9 @@ public class AccessTokenController extends BaseController {
      */
     @ApiOperation(value = "queryAccessTokenList", notes = "QUERY_ACCESS_TOKEN_LIST_NOTES")
     @ApiImplicitParams({
-        @ApiImplicitParam(name = "searchVal", value = "SEARCH_VAL", dataType = "String"),
-        @ApiImplicitParam(name = "pageNo", value = "PAGE_NO", required = true, dataType = "Int", example = "1"),
-        @ApiImplicitParam(name = "pageSize", value = "PAGE_SIZE", required = true, dataType = "Int", example = "20")
+            @ApiImplicitParam(name = "searchVal", value = "SEARCH_VAL", dataTypeClass = String.class),
+            @ApiImplicitParam(name = "pageNo", value = "PAGE_NO", required = true, dataTypeClass = int.class, example = "1"),
+            @ApiImplicitParam(name = "pageSize", value = "PAGE_SIZE", required = true, dataTypeClass = int.class, example = "20")
     })
     @GetMapping()
     @ResponseStatus(HttpStatus.OK)
@@ -141,6 +146,27 @@ public class AccessTokenController extends BaseController {
     }
 
     /**
+     * query access token for specified user
+     *
+     * @param loginUser login user
+     * @param userId user id
+     * @return token list for specified user
+     */
+    @ApiOperation(value = "queryAccessTokenByUser", notes = "QUERY_ACCESS_TOKEN_BY_USER_NOTES")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "userId", value = "USER_ID", dataTypeClass = int.class)
+    })
+    @GetMapping(value = "/user/{userId}")
+    @ResponseStatus(HttpStatus.OK)
+    @ApiException(QUERY_ACCESSTOKEN_BY_USER_ERROR)
+    @AccessLogAnnotation(ignoreRequestArgs = "loginUser")
+    public Result queryAccessTokenByUser(@ApiIgnore @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                         @PathVariable("userId") Integer userId) {
+        Map<String, Object> result = this.accessTokenService.queryAccessTokenByUser(loginUser, userId);
+        return this.returnDataList(result);
+    }
+
+    /**
      * delete access token by id
      *
      * @param loginUser login user
@@ -158,7 +184,6 @@ public class AccessTokenController extends BaseController {
         return returnDataList(result);
     }
 
-
     /**
      * update token
      *
@@ -166,10 +191,16 @@ public class AccessTokenController extends BaseController {
      * @param id token id
      * @param userId token for user
      * @param expireTime token expire time
-     * @param token token string
-     * @return update result code
+     * @param token token string (if it is absent, it will be automatically generated)
+     * @return updated access token entity
      */
-    @ApiIgnore
+    @ApiOperation(value = "updateToken", notes = "UPDATE_TOKEN_NOTES")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "id", value = "TOKEN_ID", required = true, dataTypeClass = int.class),
+            @ApiImplicitParam(name = "userId", value = "USER_ID", required = true, dataTypeClass = int.class),
+            @ApiImplicitParam(name = "expireTime", value = "EXPIRE_TIME", required = true, dataTypeClass = String.class, example = "2021-12-31 00:00:00"),
+            @ApiImplicitParam(name = "token", value = "TOKEN", required = false, dataTypeClass = String.class, example = "xxxx")
+    })
     @PutMapping(value = "/{id}")
     @ResponseStatus(HttpStatus.OK)
     @ApiException(UPDATE_ACCESS_TOKEN_ERROR)
@@ -178,7 +209,7 @@ public class AccessTokenController extends BaseController {
                               @PathVariable(value = "id") int id,
                               @RequestParam(value = "userId") int userId,
                               @RequestParam(value = "expireTime") String expireTime,
-                              @RequestParam(value = "token") String token) {
+                              @RequestParam(value = "token", required = false) String token) {
 
         Map<String, Object> result = accessTokenService.updateToken(loginUser, id, userId, expireTime, token);
         return returnDataList(result);

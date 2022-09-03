@@ -33,6 +33,7 @@ header:
     - .gitattributes
     - '**/licenses/**/LICENSE-*'
     - '**/*.md'
+    - '**/*.svg'
     - '**/*.json'
     - '**/*.iml'
     - '**/*.ini'
@@ -43,7 +44,7 @@ header:
     - '**/NOTICE'
     - '**/node_modules/**'
     - '.github/actions/comment-on-issue/**'
-    - '.github/actions/reviewdog-setup/**'
     - '.github/actions/translate-on-issue/**'
+    - '**/.gitkeep'
 
   comment: on-failure

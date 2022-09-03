@@ -17,7 +17,10 @@
 
 package org.apache.dolphinscheduler.plugin.task.api;
 
-import org.apache.dolphinscheduler.spi.task.request.TaskRequest;
+import org.apache.dolphinscheduler.plugin.task.api.model.ResourceInfo;
+import org.apache.dolphinscheduler.plugin.task.api.model.TaskResponse;
+
+import java.util.regex.Pattern;
 
 /**
  * abstract yarn task
@@ -29,29 +32,40 @@ public abstract class AbstractYarnTask extends AbstractTaskExecutor {
     private ShellCommandExecutor shellCommandExecutor;
 
     /**
+     * rules for extracting application ID
+     */
+    protected static final Pattern YARN_APPLICATION_REGEX = Pattern.compile(TaskConstants.YARN_APPLICATION_REGEX);
+
+    /**
      * Abstract Yarn Task
      *
      * @param taskRequest taskRequest
      */
-    public AbstractYarnTask(TaskRequest taskRequest) {
+    public AbstractYarnTask(TaskExecutionContext taskRequest) {
         super(taskRequest);
         this.shellCommandExecutor = new ShellCommandExecutor(this::logHandle,
-                taskRequest,
-                logger);
+            taskRequest,
+            logger);
     }
 
     @Override
-    public void handle() throws Exception {
+    public void handle() throws TaskException {
         try {
             // SHELL task exit code
             TaskResponse response = shellCommandExecutor.run(buildCommand());
             setExitStatusCode(response.getExitStatusCode());
-            setAppIds(response.getAppIds());
+            // set appIds
+            setAppIds(String.join(TaskConstants.COMMA, getApplicationIds()));
             setProcessId(response.getProcessId());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            logger.info("The current yarn task has been interrupted", ex);
+            setExitStatusCode(TaskConstants.EXIT_CODE_FAILURE);
+            throw new TaskException("The current yarn task has been interrupted", ex);
         } catch (Exception e) {
             logger.error("yarn process failure", e);
             exitStatusCode = -1;
-            throw e;
+            throw new TaskException("Execute task failed", e);
         }
     }
 
@@ -72,7 +86,6 @@ public abstract class AbstractYarnTask extends AbstractTaskExecutor {
      * create command
      *
      * @return String
-     * @throws Exception exception
      */
     protected abstract String buildCommand();
 
@@ -80,4 +93,21 @@ public abstract class AbstractYarnTask extends AbstractTaskExecutor {
      * set main jar name
      */
     protected abstract void setMainJarName();
+
+    /**
+     * Get name of jar resource.
+     *
+     * @param mainJar
+     * @return
+     */
+    protected String getResourceNameOfMainJar(ResourceInfo mainJar) {
+        if (null == mainJar) {
+            throw new RuntimeException("The jar for the task is required.");
+        }
+
+        return mainJar.getId() == 0
+            ? mainJar.getRes()
+            // when update resource maybe has error
+            : mainJar.getResourceName().replaceFirst("/", "");
+    }
 }

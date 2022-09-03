@@ -17,13 +17,13 @@
 
 package org.apache.dolphinscheduler.plugin.task.sqoop.generator;
 
-import static org.apache.dolphinscheduler.spi.task.TaskConstants.D;
-import static org.apache.dolphinscheduler.spi.task.TaskConstants.EQUAL_SIGN;
-import static org.apache.dolphinscheduler.spi.task.TaskConstants.SPACE;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.D;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EQUAL_SIGN;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.SPACE;
 
+import org.apache.dolphinscheduler.plugin.task.api.model.Property;
 import org.apache.dolphinscheduler.plugin.task.sqoop.SqoopConstants;
 import org.apache.dolphinscheduler.plugin.task.sqoop.parameter.SqoopParameters;
-import org.apache.dolphinscheduler.spi.task.Property;
 
 import org.apache.commons.collections4.CollectionUtils;
 
@@ -79,6 +79,10 @@ public class CommonGenerator {
             if (sqoopParameters.getConcurrency() > 0) {
                 commonSb.append(SPACE).append(SqoopConstants.SQOOP_PARALLELISM)
                     .append(SPACE).append(sqoopParameters.getConcurrency());
+                if (sqoopParameters.getConcurrency() > 1) {
+                    commonSb.append(SPACE).append(SqoopConstants.SPLIT_BY)
+                        .append(SPACE).append(sqoopParameters.getSplitBy());
+                }
             }
         } catch (Exception e) {
             logger.error(String.format("Sqoop task general param build failed: [%s]", e.getMessage()));

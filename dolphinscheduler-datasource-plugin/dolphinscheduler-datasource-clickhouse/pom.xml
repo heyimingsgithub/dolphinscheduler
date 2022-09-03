@@ -21,7 +21,7 @@
     <parent>
         <artifactId>dolphinscheduler-datasource-plugin</artifactId>
         <groupId>org.apache.dolphinscheduler</groupId>
-        <version>2.0.0-SNAPSHOT</version>
+        <version>dev-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -34,7 +34,6 @@
         <dependency>
             <groupId>org.apache.dolphinscheduler</groupId>
             <artifactId>dolphinscheduler-spi</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -64,10 +63,7 @@
                     <artifactId>jackson-core</artifactId>
                 </exclusion>
             </exclusions>
-            <version>${clickhouse.jdbc.version}</version>
         </dependency>
-
-
 
         <dependency>
             <groupId>org.mockito</groupId>

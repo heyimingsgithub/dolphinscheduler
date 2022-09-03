@@ -72,6 +72,8 @@ public class WorkerGroupControllerTest extends AbstractControllerTest {
         MultiValueMap<String, String> paramsMap = new LinkedMultiValueMap<>();
         paramsMap.add("name","cxc_work_group");
         paramsMap.add("addrList","192.168.0.1,192.168.0.2");
+        paramsMap.add("description","");
+        paramsMap.add("otherParamsJson","");
         MvcResult mvcResult = mockMvc.perform(post("/worker-groups")
                 .header("sessionId", sessionId)
                 .params(paramsMap))
@@ -106,6 +108,18 @@ public class WorkerGroupControllerTest extends AbstractControllerTest {
         MvcResult mvcResult = mockMvc.perform(get("/worker-groups/all")
                 .header("sessionId", sessionId)
                 .params(paramsMap))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
+        Result result = JSONUtils.parseObject(mvcResult.getResponse().getContentAsString(), Result.class);
+        Assert.assertTrue(result != null && result.isSuccess());
+        logger.info(mvcResult.getResponse().getContentAsString());
+    }
+
+    @Test
+    public void queryWorkerAddressList() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get("/worker-groups/worker-address-list")
+                        .header("sessionId", sessionId))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andReturn();

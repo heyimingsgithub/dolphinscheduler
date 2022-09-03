@@ -17,44 +17,22 @@
 
 """Task sql."""
 
+import logging
 import re
 from typing import Dict, Optional
 
 from pydolphinscheduler.constants import TaskType
-from pydolphinscheduler.core.task import Task, TaskParams
-from pydolphinscheduler.java_gateway import launch_gateway
+from pydolphinscheduler.core.database import Database
+from pydolphinscheduler.core.task import Task
+
+log = logging.getLogger(__file__)
 
 
 class SqlType:
     """SQL type, for now it just contain `SELECT` and `NO_SELECT`."""
 
-    SELECT = 0
-    NOT_SELECT = 1
-
-
-class SqlTaskParams(TaskParams):
-    """Parameter only for Sql task type."""
-
-    def __init__(
-        self,
-        type: str,
-        datasource: str,
-        sql: str,
-        sql_type: Optional[int] = SqlType.NOT_SELECT,
-        display_rows: Optional[int] = 10,
-        pre_statements: Optional[str] = None,
-        post_statements: Optional[str] = None,
-        *args,
-        **kwargs
-    ):
-        super().__init__(*args, **kwargs)
-        self.type = type
-        self.datasource = datasource
-        self.sql = sql
-        self.sql_type = sql_type
-        self.display_rows = display_rows
-        self.pre_statements = pre_statements or []
-        self.post_statements = post_statements or []
+    SELECT = "0"
+    NOT_SELECT = "1"
 
 
 class Sql(Task):
@@ -73,56 +51,69 @@ class Sql(Task):
     database type and database instance would run this sql.
     """
 
+    _task_custom_attr = {
+        "sql",
+        "sql_type",
+        "pre_statements",
+        "post_statements",
+        "display_rows",
+    }
+
     def __init__(
         self,
         name: str,
         datasource_name: str,
         sql: str,
-        pre_sql: Optional[str] = None,
-        post_sql: Optional[str] = None,
+        sql_type: Optional[str] = None,
+        pre_statements: Optional[str] = None,
+        post_statements: Optional[str] = None,
         display_rows: Optional[int] = 10,
         *args,
         **kwargs
     ):
-        self._sql = sql
-        self._datasource_name = datasource_name
-        self._datasource = {}
-        task_params = SqlTaskParams(
-            type=self.get_datasource_type(),
-            datasource=self.get_datasource_id(),
-            sql=sql,
-            sql_type=self.sql_type,
-            display_rows=display_rows,
-            pre_statements=pre_sql,
-            post_statements=post_sql,
-        )
-        super().__init__(name, TaskType.SQL, task_params, *args, **kwargs)
-
-    def get_datasource_type(self) -> str:
-        """Get datasource type from java gateway, a wrapper for :func:`get_datasource_info`."""
-        return self.get_datasource_info(self._datasource_name).get("type")
-
-    def get_datasource_id(self) -> str:
-        """Get datasource id from java gateway, a wrapper for :func:`get_datasource_info`."""
-        return self.get_datasource_info(self._datasource_name).get("id")
-
-    def get_datasource_info(self, name) -> Dict:
-        """Get datasource info from java gateway, contains datasource id, type, name."""
-        if self._datasource:
-            return self._datasource
-        else:
-            gateway = launch_gateway()
-            self._datasource = gateway.entry_point.getDatasourceInfo(name)
-            return self._datasource
+        super().__init__(name, TaskType.SQL, *args, **kwargs)
+        self.sql = sql
+        self.param_sql_type = sql_type
+        self.datasource_name = datasource_name
+        self.pre_statements = pre_statements or []
+        self.post_statements = post_statements or []
+        self.display_rows = display_rows
 
     @property
-    def sql_type(self) -> int:
-        """Judgement sql type, use regexp to check which type of the sql is."""
+    def sql_type(self) -> str:
+        """Judgement sql type, it will return the SQL type for type `SELECT` or `NOT_SELECT`.
+
+        If `param_sql_type` dot not specific, will use regexp to check
+        which type of the SQL is. But if `param_sql_type` is specific
+        will use the parameter overwrites the regexp way
+        """
+        if (
+            self.param_sql_type == SqlType.SELECT
+            or self.param_sql_type == SqlType.NOT_SELECT
+        ):
+            log.info(
+                "The sql type is specified by a parameter, with value %s",
+                self.param_sql_type,
+            )
+            return self.param_sql_type
         pattern_select_str = (
-            "^(?!(.* |)insert |(.* |)delete |(.* |)drop |(.* |)update |(.* |)alter ).*"
+            "^(?!(.* |)insert |(.* |)delete |(.* |)drop "
+            "|(.* |)update |(.* |)truncate |(.* |)alter |(.* |)create ).*"
         )
         pattern_select = re.compile(pattern_select_str, re.IGNORECASE)
-        if pattern_select.match(self._sql) is None:
+        if pattern_select.match(self.sql) is None:
             return SqlType.NOT_SELECT
         else:
             return SqlType.SELECT
+
+    @property
+    def task_params(self, camel_attr: bool = True, custom_attr: set = None) -> Dict:
+        """Override Task.task_params for sql task.
+
+        sql task have some specials attribute for task_params, and is odd if we
+        directly set as python property, so we Override Task.task_params here.
+        """
+        params = super().task_params
+        datasource = Database(self.datasource_name, "type", "datasource")
+        params.update(datasource)
+        return params

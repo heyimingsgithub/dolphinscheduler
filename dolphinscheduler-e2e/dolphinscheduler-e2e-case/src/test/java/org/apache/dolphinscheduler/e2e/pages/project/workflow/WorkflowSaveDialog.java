@@ -19,9 +19,7 @@
  */
 package org.apache.dolphinscheduler.e2e.pages.project.workflow;
 
-import java.util.List;
-import java.util.stream.Stream;
-
+import lombok.Getter;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -32,29 +30,40 @@ import org.openqa.selenium.support.pagefactory.ByChained;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-import lombok.Getter;
+import java.util.List;
+import java.util.stream.Stream;
 
 @Getter
 public final class WorkflowSaveDialog {
     private final WebDriver driver;
     private final WorkflowForm parent;
 
-    @FindBy(id = "input-name")
+    @FindBys({
+            @FindBy(className = "input-name"),
+            @FindBy(tagName = "input")
+    })
     private WebElement inputName;
-    @FindBy(id = "button-submit")
+
+    @FindBy(className = "btn-submit")
     private WebElement buttonSubmit;
+
     @FindBys({
-        @FindBy(className = "input-param-key"),
-        @FindBy(tagName = "input"),
+            @FindBy(className = "input-global-params"),
+            @FindBy(tagName = "button"),
     })
-    private List<WebElement> inputParamKey;
+    private WebElement buttonGlobalCustomParameters;
+
     @FindBys({
-        @FindBy(className = "input-param-val"),
-        @FindBy(tagName = "input"),
+            @FindBy(className = "btn-select-tenant-code"),
+            @FindBy(className = "n-base-selection"),
     })
-    private List<WebElement> inputParamVal;
-    @FindBy(id = "select-tenant")
     private WebElement selectTenant;
+
+    @FindBy(className = "n-base-select-option__content")
+    private List<WebElement> selectTenantOption;
+
+    @FindBy(className = "input-global-params")
+    private WebElement globalParamsItems;
 
     public WorkflowSaveDialog(WorkflowForm parent) {
         this.parent = parent;
@@ -72,37 +81,33 @@ public final class WorkflowSaveDialog {
     public WorkflowSaveDialog tenant(String tenant) {
         selectTenant().click();
 
-        final var optionsLocator = By.className("option-tenants");
-
-        new WebDriverWait(driver, 10)
-            .until(ExpectedConditions.visibilityOfElementLocated(optionsLocator));
-
-        driver().findElements(optionsLocator)
+        selectTenantOption()
                 .stream()
-                .filter(it -> it.getText().contains(tenant))
+                .filter(it -> it.getAttribute("innerText").contains(tenant))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("No such tenant: " + tenant))
-                .click()
-        ;
+                .orElseThrow(() -> new RuntimeException(String.format("No %s in workflow save dialog tenant dropdown " +
+                        "list", tenant)))
+                .click();
 
         return this;
     }
 
-    public WorkflowSaveDialog addGlobalParam(String key, String val) {
-        assert inputParamKey().size() == inputParamVal().size();
+    public WorkflowSaveDialog addGlobalParam(String key, String value) {
+        final int len = globalParamsItems().findElements(By.tagName("input")).size();
 
-        final var len = inputParamKey().size();
+        final WebDriver driver = parent().driver();
 
-        final var driver = parent().driver();
-        Stream.concat(
-                  driver.findElements(new ByChained(By.className("user-def-params-model"), By.className("add"))).stream(),
-                  driver.findElements(new ByChained(By.className("user-def-params-model"), By.className("add-dp"))).stream())
-              .findFirst()
-              .orElseThrow(() -> new RuntimeException("Cannot find button to add param"))
-              .click();
+        if (len == 0) {
+            buttonGlobalCustomParameters().click();
 
-        inputParamKey().get(len).sendKeys(key);
-        inputParamVal().get(len).sendKeys(val);
+            globalParamsItems().findElements(By.tagName("input")).get(0).sendKeys(key);
+            globalParamsItems().findElements(By.tagName("input")).get(1).sendKeys(value);
+        } else {
+            globalParamsItems().findElements(By.tagName("button")).get(len-1).click();
+
+            globalParamsItems().findElements(By.tagName("input")).get(len).sendKeys(key);
+            globalParamsItems().findElements(By.tagName("input")).get(len+1).sendKeys(value);
+        }
 
         return this;
     }

@@ -18,15 +18,15 @@
 package org.apache.dolphinscheduler.plugin.task.http;
 
 import static org.apache.dolphinscheduler.plugin.task.http.HttpTaskConstants.APPLICATION_JSON;
-import static org.apache.dolphinscheduler.spi.task.TaskConstants.TASK_LOG_INFO_FORMAT;
 
 import org.apache.dolphinscheduler.plugin.task.api.AbstractTaskExecutor;
-import org.apache.dolphinscheduler.plugin.task.util.MapUtils;
-import org.apache.dolphinscheduler.spi.task.AbstractParameters;
-import org.apache.dolphinscheduler.spi.task.Property;
-import org.apache.dolphinscheduler.spi.task.paramparser.ParamUtils;
-import org.apache.dolphinscheduler.spi.task.paramparser.ParameterUtils;
-import org.apache.dolphinscheduler.spi.task.request.TaskRequest;
+import org.apache.dolphinscheduler.plugin.task.api.TaskException;
+import org.apache.dolphinscheduler.plugin.task.api.TaskExecutionContext;
+import org.apache.dolphinscheduler.plugin.task.api.model.Property;
+import org.apache.dolphinscheduler.plugin.task.api.parameters.AbstractParameters;
+import org.apache.dolphinscheduler.plugin.task.api.parser.ParamUtils;
+import org.apache.dolphinscheduler.plugin.task.api.parser.ParameterUtils;
+import org.apache.dolphinscheduler.plugin.task.api.utils.MapUtils;
 import org.apache.dolphinscheduler.spi.utils.DateUtils;
 import org.apache.dolphinscheduler.spi.utils.JSONUtils;
 import org.apache.dolphinscheduler.spi.utils.StringUtils;
@@ -67,14 +67,14 @@ public class HttpTask extends AbstractTaskExecutor {
     /**
      * taskExecutionContext
      */
-    private TaskRequest taskExecutionContext;
+    private TaskExecutionContext taskExecutionContext;
 
     /**
      * constructor
      *
      * @param taskExecutionContext taskExecutionContext
      */
-    public HttpTask(TaskRequest taskExecutionContext) {
+    public HttpTask(TaskExecutionContext taskExecutionContext) {
         super(taskExecutionContext);
         this.taskExecutionContext = taskExecutionContext;
     }
@@ -90,11 +90,7 @@ public class HttpTask extends AbstractTaskExecutor {
     }
 
     @Override
-    public void handle() throws Exception {
-
-        String threadLoggerInfoName = String.format(TASK_LOG_INFO_FORMAT, taskExecutionContext.getTaskAppId());
-        Thread.currentThread().setName(threadLoggerInfoName);
-
+    public void handle() throws TaskException {
         long startTime = System.currentTimeMillis();
         String formatTimeStamp = DateUtils.formatTimeStamp(startTime);
         String statusCode = null;
@@ -113,7 +109,7 @@ public class HttpTask extends AbstractTaskExecutor {
             appendMessage(e.toString());
             exitStatusCode = -1;
             logger.error("httpUrl[" + httpParameters.getUrl() + "] connection failed：" + output, e);
-            throw e;
+            throw new TaskException("Execute http task failed", e);
         }
 
     }
@@ -129,13 +125,7 @@ public class HttpTask extends AbstractTaskExecutor {
         RequestBuilder builder = createRequestBuilder();
 
         // replace placeholder,and combine local and global parameters
-        Map<String, Property> paramsMap = ParamUtils.convert(taskExecutionContext,getParameters());
-        if (MapUtils.isEmpty(paramsMap)) {
-            paramsMap = new HashMap<>();
-        }
-        if (MapUtils.isNotEmpty(taskExecutionContext.getParamsMap())) {
-            paramsMap.putAll(taskExecutionContext.getParamsMap());
-        }
+        Map<String, Property> paramsMap = taskExecutionContext.getPrepareParamsMap();
 
         List<HttpProperty> httpPropertyList = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(httpParameters.getHttpParams())) {
