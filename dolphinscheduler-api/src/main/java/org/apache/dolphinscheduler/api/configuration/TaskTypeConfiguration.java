@@ -17,19 +17,23 @@
 
 package org.apache.dolphinscheduler.api.configuration;
 
+import org.apache.dolphinscheduler.api.dto.FavTaskDto;
+import org.apache.dolphinscheduler.common.config.YamlPropertySourceFactory;
+import org.apache.dolphinscheduler.common.constants.Constants;
+
+import org.apache.commons.collections4.CollectionUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import lombok.Getter;
 import lombok.Setter;
-import org.apache.dolphinscheduler.api.dto.FavTaskDto;
-import org.apache.dolphinscheduler.common.Constants;
-import org.apache.dolphinscheduler.common.config.YamlPropertySourceFactory;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Component;
-
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 @Component
 @EnableConfigurationProperties
@@ -37,6 +41,7 @@ import java.util.Set;
 @ConfigurationProperties(prefix = "task")
 @Getter
 @Setter
+@Slf4j
 public class TaskTypeConfiguration {
 
     private List<String> universal;
@@ -45,22 +50,34 @@ public class TaskTypeConfiguration {
     private List<String> dataIntegration;
     private List<String> dataQuality;
     private List<String> other;
-
     private List<String> machineLearning;
 
-    public Set<FavTaskDto> getDefaultTaskTypes() {
-        Set<FavTaskDto> defaultTaskTypes = new HashSet<>();
-        if (defaultTaskTypes.size() <= 0) {
-            universal.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_UNIVERSAL)));
-            cloud.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_CLOUD)));
-            logic.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_LOGIC)));
-            dataIntegration.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_DATA_INTEGRATION)));
-            dataQuality.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_DATA_QUALITY)));
-            machineLearning.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_MACHINE_LEARNING)));
-            other.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_OTHER)));
+    private static final List<FavTaskDto> defaultTaskTypes = new ArrayList<>();
 
+    public List<FavTaskDto> getDefaultTaskTypes() {
+        if (CollectionUtils.isNotEmpty(defaultTaskTypes)) {
+            return defaultTaskTypes;
         }
-
+        printDefaultTypes();
+        universal.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_UNIVERSAL)));
+        cloud.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_CLOUD)));
+        logic.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_LOGIC)));
+        dataIntegration
+                .forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_DATA_INTEGRATION)));
+        dataQuality.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_DATA_QUALITY)));
+        machineLearning
+                .forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_MACHINE_LEARNING)));
+        other.forEach(task -> defaultTaskTypes.add(new FavTaskDto(task, false, Constants.TYPE_OTHER)));
         return defaultTaskTypes;
+    }
+
+    public void printDefaultTypes() {
+        log.info("support default universal task types: {}", universal);
+        log.info("support default cloud task types: {}", cloud);
+        log.info("support default logic task types: {}", logic);
+        log.info("support default dataIntegration task types: {}", dataIntegration);
+        log.info("support default dataQuality task types: {}", dataQuality);
+        log.info("support default machineLearning task types: {}", machineLearning);
+        log.info("support default other task types: {}", other);
     }
 }

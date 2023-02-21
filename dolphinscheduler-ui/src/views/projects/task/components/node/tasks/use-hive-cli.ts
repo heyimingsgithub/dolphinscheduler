@@ -42,7 +42,8 @@ export function useHiveCli({
     failRetryTimes: 0,
     workerGroup: 'default',
     delayTime: 0,
-    timeout: 30
+    timeout: 30,
+    hiveCliTaskExecutionType: 'SCRIPT'
   } as INodeData)
 
   let extra: IJsonItem[] = []
@@ -64,10 +65,11 @@ export function useHiveCli({
       Fields.useName(from),
       ...extra,
       Fields.useRunFlag(),
+      Fields.useCache(),
       Fields.useDescription(),
       Fields.useTaskPriority(),
       Fields.useWorkerGroup(),
-      Fields.useEnvironmentName(model, !model.id),
+      Fields.useEnvironmentName(model, !data?.id),
       ...Fields.useTaskGroup(model, projectCode),
       ...Fields.useFailed(),
       Fields.useDelayTime(model),

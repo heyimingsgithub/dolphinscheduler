@@ -27,8 +27,10 @@ import org.apache.dolphinscheduler.dao.entity.ProcessInstance;
 import org.apache.dolphinscheduler.dao.entity.TaskDefinition;
 import org.apache.dolphinscheduler.dao.entity.TaskInstance;
 import org.apache.dolphinscheduler.dao.entity.Tenant;
+import org.apache.dolphinscheduler.dao.repository.TaskInstanceDao;
 import org.apache.dolphinscheduler.plugin.task.api.enums.TaskExecutionStatus;
 import org.apache.dolphinscheduler.server.master.dispatch.ExecutorDispatcher;
+import org.apache.dolphinscheduler.server.master.dispatch.exceptions.ExecuteException;
 import org.apache.dolphinscheduler.service.process.ProcessService;
 import org.apache.dolphinscheduler.service.queue.TaskPriority;
 import org.apache.dolphinscheduler.service.queue.TaskPriorityQueue;
@@ -37,18 +39,18 @@ import org.apache.dolphinscheduler.spi.enums.DbType;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@Ignore
+@ExtendWith(SpringExtension.class)
+@Disabled
 public class TaskPriorityQueueConsumerTest {
 
     @Autowired
@@ -61,9 +63,12 @@ public class TaskPriorityQueueConsumerTest {
     private ProcessService processService;
 
     @Autowired
+    private TaskInstanceDao taskInstanceDao;
+
+    @Autowired
     private ExecutorDispatcher dispatcher;
 
-    @Before
+    @BeforeEach
     public void init() {
 
         Tenant tenant = new Tenant();
@@ -103,7 +108,7 @@ public class TaskPriorityQueueConsumerTest {
 
         TimeUnit.SECONDS.sleep(10);
 
-        Assert.assertNotNull(taskInstance);
+        Assertions.assertNotNull(taskInstance);
     }
 
     @Test
@@ -144,7 +149,7 @@ public class TaskPriorityQueueConsumerTest {
         Mockito.doReturn(dataSource).when(processService).findDataSourceById(1);
 
         TimeUnit.SECONDS.sleep(10);
-        Assert.assertNotNull(taskInstance);
+        Assertions.assertNotNull(taskInstance);
     }
 
     @Test
@@ -183,7 +188,7 @@ public class TaskPriorityQueueConsumerTest {
         dataSource.setUpdateTime(new Date());
         Mockito.doReturn(dataSource).when(processService).findDataSourceById(80);
         TimeUnit.SECONDS.sleep(10);
-        Assert.assertNotNull(taskInstance);
+        Assertions.assertNotNull(taskInstance);
     }
 
     @Test
@@ -222,7 +227,7 @@ public class TaskPriorityQueueConsumerTest {
         dataSource.setUpdateTime(new Date());
         Mockito.doReturn(dataSource).when(processService).findDataSourceById(1);
         TimeUnit.SECONDS.sleep(10);
-        Assert.assertNotNull(taskInstance);
+        Assertions.assertNotNull(taskInstance);
     }
 
     @Test
@@ -236,10 +241,10 @@ public class TaskPriorityQueueConsumerTest {
         taskInstance.setWorkerGroup("default");
         taskInstance.setExecutorId(2);
 
-        Mockito.doReturn(taskInstance).when(processService).findTaskInstanceById(1);
+        Mockito.doReturn(taskInstance).when(taskInstanceDao).findTaskInstanceById(1);
 
         Boolean state = taskPriorityQueueConsumer.taskInstanceIsFinalState(1);
-        Assert.assertNotNull(state);
+        Assertions.assertNotNull(state);
     }
 
     @Test
@@ -264,14 +269,14 @@ public class TaskPriorityQueueConsumerTest {
         processDefinition.setUserId(2);
         taskInstance.setProcessDefine(processDefinition);
 
-        Mockito.doReturn(taskInstance).when(processService).findTaskInstanceById(1);
+        Mockito.doReturn(taskInstance).when(taskInstanceDao).findTaskInstanceById(1);
 
         TaskPriority taskPriority = new TaskPriority(2, 1, 2, 1, 1, "NoWorkGroup");
         taskPriorityQueue.put(taskPriority);
 
         TimeUnit.SECONDS.sleep(10);
 
-        Assert.assertNotNull(taskInstance);
+        Assertions.assertNotNull(taskInstance);
 
     }
 
@@ -302,13 +307,18 @@ public class TaskPriorityQueueConsumerTest {
         taskDefinition.setTimeoutFlag(TimeoutFlag.OPEN);
         taskInstance.setTaskDefine(taskDefinition);
 
-        Mockito.doReturn(taskInstance).when(processService).findTaskInstanceById(1);
+        Mockito.doReturn(taskInstance).when(taskInstanceDao).findTaskInstanceById(1);
 
         TaskPriority taskPriority = new TaskPriority();
         taskPriority.setTaskId(1);
-        boolean res = taskPriorityQueueConsumer.dispatchTask(taskPriority);
+        boolean res = false;
+        try {
+            taskPriorityQueueConsumer.dispatchTask(taskPriority);
+        } catch (ExecuteException e) {
+            throw new RuntimeException(e);
+        }
 
-        Assert.assertFalse(res);
+        Assertions.assertFalse(res);
     }
 
     @Test
@@ -333,7 +343,7 @@ public class TaskPriorityQueueConsumerTest {
         processDefinition.setUserId(2);
         taskInstance.setProcessDefine(processDefinition);
 
-        Mockito.doReturn(taskInstance).when(processService).findTaskInstanceById(1);
+        Mockito.doReturn(taskInstance).when(taskInstanceDao).findTaskInstanceById(1);
 
         TaskPriority taskPriority = new TaskPriority(2, 1, 2, 1, 1, "NoWorkGroup");
         taskPriorityQueue.put(taskPriority);
@@ -341,11 +351,11 @@ public class TaskPriorityQueueConsumerTest {
         taskPriorityQueueConsumer.run();
 
         TimeUnit.SECONDS.sleep(10);
-        Assert.assertNotEquals(-1, taskPriorityQueue.size());
+        Assertions.assertNotEquals(-1, taskPriorityQueue.size());
 
     }
 
-    @After
+    @AfterEach
     public void close() {
         ServerLifeCycleManager.toStopped();
     }

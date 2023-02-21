@@ -17,9 +17,10 @@
 
 package org.apache.dolphinscheduler.server.master.runner.task;
 
-import com.google.auto.service.AutoService;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.dolphinscheduler.common.Constants;
+import org.apache.dolphinscheduler.common.constants.Constants;
+import org.apache.dolphinscheduler.common.constants.DataSourceConstants;
+import org.apache.dolphinscheduler.common.utils.JSONUtils;
+import org.apache.dolphinscheduler.plugin.task.api.TaskConstants;
 import org.apache.dolphinscheduler.plugin.task.api.TaskExecutionContext;
 import org.apache.dolphinscheduler.plugin.task.api.enums.TaskExecutionStatus;
 import org.apache.dolphinscheduler.remote.command.TaskKillRequestCommand;
@@ -33,7 +34,13 @@ import org.apache.dolphinscheduler.service.queue.TaskPriority;
 import org.apache.dolphinscheduler.service.queue.TaskPriorityQueue;
 import org.apache.dolphinscheduler.service.queue.TaskPriorityQueueImpl;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.Date;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.auto.service.AutoService;
 
 /**
  * common task processor
@@ -47,6 +54,10 @@ public class CommonTaskProcessor extends BaseTaskProcessor {
 
     @Override
     protected boolean submitTask() {
+        if (this.taskInstance.getTestFlag() == Constants.TEST_FLAG_YES) {
+            convertExeEnvironmentOnlineToTest();
+        }
+
         this.taskInstance =
                 processService.submitTaskWithRetry(processInstance, taskInstance, maxRetryTimes, commitInterval);
 
@@ -92,37 +103,37 @@ public class CommonTaskProcessor extends BaseTaskProcessor {
                 this.initQueue();
             }
             if (taskInstance.getState().isFinished()) {
-                logger.info("submit task , but task [{}] state [{}] is already  finished. ", taskInstance.getName(),
-                        taskInstance.getState());
+                log.info("Task {} has already finished, no need to submit to task queue, taskState: {}",
+                        taskInstance.getName(), taskInstance.getState());
                 return true;
             }
             // task cannot be submitted because its execution state is RUNNING or DELAY.
             if (taskInstance.getState() == TaskExecutionStatus.RUNNING_EXECUTION
                     || taskInstance.getState() == TaskExecutionStatus.DELAY_EXECUTION) {
-                logger.info("submit task, but the status of the task {} is already running or delayed.",
-                        taskInstance.getName());
+                log.info("Task {} is already running or delayed, no need to submit to task queue, taskState: {}",
+                        taskInstance.getName(), taskInstance.getState());
                 return true;
             }
-            logger.info("task ready to dispatch to worker: taskInstanceId: {}", taskInstance.getId());
+            log.info("Task {} is ready to dispatch to worker", taskInstance.getName());
 
             TaskPriority taskPriority = new TaskPriority(processInstance.getProcessInstancePriority().getCode(),
                     processInstance.getId(), taskInstance.getProcessInstancePriority().getCode(),
                     taskInstance.getId(), taskInstance.getTaskGroupPriority(),
-                    org.apache.dolphinscheduler.common.Constants.DEFAULT_WORKER_GROUP);
+                    Constants.DEFAULT_WORKER_GROUP);
 
             TaskExecutionContext taskExecutionContext = getTaskExecutionContext(taskInstance);
             if (taskExecutionContext == null) {
-                logger.error("task get taskExecutionContext fail: {}", taskInstance);
+                log.error("Get taskExecutionContext fail, task: {}", taskInstance);
                 return false;
             }
 
             taskPriority.setTaskExecutionContext(taskExecutionContext);
 
             taskUpdateQueue.put(taskPriority);
-            logger.info("Master submit task to priority queue success, taskInstanceId : {}", taskInstance.getId());
+            log.info("Task {} is submitted to priority queue success by master", taskInstance.getName());
             return true;
         } catch (Exception e) {
-            logger.error("submit task error", e);
+            log.error("Task {} is submitted to priority queue error", taskInstance.getName(), e);
             return false;
         }
     }
@@ -135,27 +146,29 @@ public class CommonTaskProcessor extends BaseTaskProcessor {
     public boolean killTask() {
 
         try {
-            taskInstance = processService.findTaskInstanceById(taskInstance.getId());
+            log.info("Begin to kill task: {}", taskInstance.getName());
             if (taskInstance == null) {
+                log.warn("Kill task failed, the task instance is not exist");
                 return true;
             }
             if (taskInstance.getState().isFinished()) {
+                log.warn("Kill task failed, the task instance is already finished");
                 return true;
             }
             // we don't wait the kill response
             taskInstance.setState(TaskExecutionStatus.KILL);
             taskInstance.setEndTime(new Date());
-            processService.updateTaskInstance(taskInstance);
+            taskInstanceDao.updateTaskInstance(taskInstance);
             if (StringUtils.isNotEmpty(taskInstance.getHost())) {
                 killRemoteTask();
             }
         } catch (Exception e) {
-            logger.error("master kill task error, taskInstance id: {}", taskInstance.getId(), e);
+            log.error("Master kill task: {} error, taskInstance id: {}", taskInstance.getName(),
+                    taskInstance.getId(), e);
             return false;
         }
 
-        logger.info("master success kill taskInstance name: {} taskInstance id: {}",
-                taskInstance.getName(), taskInstance.getId());
+        log.info("Master success kill task: {}, taskInstanceId: {}", taskInstance.getName(), taskInstance.getId());
         return true;
     }
 
@@ -170,5 +183,29 @@ public class CommonTaskProcessor extends BaseTaskProcessor {
         executionContext.setHost(host);
 
         nettyExecutorManager.executeDirectly(executionContext);
+    }
+
+    protected void convertExeEnvironmentOnlineToTest() {
+        // SQL taskType
+        if (TaskConstants.TASK_TYPE_SQL.equals(taskInstance.getTaskType())) {
+            // replace test data source
+            Map<String, Object> taskDefinitionParams = JSONUtils.parseObject(
+                    taskInstance.getTaskDefine().getTaskParams(), new TypeReference<Map<String, Object>>() {
+                    });
+            Map<String, Object> taskInstanceParams =
+                    JSONUtils.parseObject(taskInstance.getTaskParams(), new TypeReference<Map<String, Object>>() {
+                    });
+            Integer onlineDataSourceId = (Integer) taskDefinitionParams.get(DataSourceConstants.DATASOURCE);
+            Integer testDataSourceId = processService.queryTestDataSourceId(onlineDataSourceId);
+            taskDefinitionParams.put(DataSourceConstants.DATASOURCE, testDataSourceId);
+            taskInstanceParams.put(DataSourceConstants.DATASOURCE, testDataSourceId);
+            taskInstance.getTaskDefine().setTaskParams(JSONUtils.toJsonString(taskDefinitionParams));
+            taskInstance.setTaskParams(JSONUtils.toJsonString(taskInstanceParams));
+            if (null == testDataSourceId) {
+                log.warn("task name :{}, test data source replacement failed", taskInstance.getName());
+            } else {
+                log.info("task name :{}, test data source replacement succeeded", taskInstance.getName());
+            }
+        }
     }
 }

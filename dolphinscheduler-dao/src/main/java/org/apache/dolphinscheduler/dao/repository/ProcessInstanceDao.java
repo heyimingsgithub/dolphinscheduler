@@ -19,6 +19,7 @@ package org.apache.dolphinscheduler.dao.repository;
 
 import org.apache.dolphinscheduler.dao.entity.ProcessInstance;
 
+import java.util.List;
 
 public interface ProcessInstanceDao {
 
@@ -32,4 +33,9 @@ public interface ProcessInstanceDao {
      * @param processInstance processInstance
      */
     public int upsertProcessInstance(ProcessInstance processInstance);
+
+    void deleteByIds(List<Integer> needToDeleteWorkflowInstanceIds);
+
+    void deleteById(Integer workflowInstanceId);
+
 }

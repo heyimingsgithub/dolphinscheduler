@@ -26,16 +26,18 @@ import java.io.File;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
+import lombok.Data;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import lombok.Data;
-
 @Data
 public class GitProjectManager {
+
     public static final String GIT_PATH_LOCAL = "GIT_PROJECT";
     private static final Pattern GIT_CHECK_PATTERN = Pattern.compile("^(git@|https?://)");
-    protected final Logger logger = LoggerFactory.getLogger(String.format(TaskConstants.TASK_LOG_LOGGER_NAME_FORMAT, getClass()));
+    protected final Logger log =
+            LoggerFactory.getLogger(String.format(TaskConstants.TASK_LOG_LOGGER_NAME_FORMAT, getClass()));
     private String path;
     private String baseDir = ".";
 
@@ -46,7 +48,7 @@ public class GitProjectManager {
     public void prepareProject() throws Exception {
         String savePath = Paths.get(baseDir, GIT_PATH_LOCAL).toString();
 
-        logger.info("clone project {} to {}", path, savePath);
+        log.info("clone project {} to {}", path, savePath);
         String[] command = {"sh", "-c", String.format("git clone %s %s", getGitUrl(), savePath)};
         try {
             OSUtils.exeShell(command);
@@ -55,7 +57,7 @@ public class GitProjectManager {
                 throw e;
             }
         }
-        logger.info("clone project done");
+        log.info("clone project done");
     }
 
     public String getGitUrl() {

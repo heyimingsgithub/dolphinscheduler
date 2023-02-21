@@ -32,17 +32,17 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Objects;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.google.common.base.Strings;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 /**
  * process instance
@@ -56,26 +56,16 @@ public class ProcessInstance {
      * id
      */
     @TableId(value = "id", type = IdType.AUTO)
-    private int id;
+    private Integer id;
 
-    /**
-     * process definition code
-     */
     private Long processDefinitionCode;
 
-    /**
-     * process definition version
-     */
     private int processDefinitionVersion;
 
-    /**
-     * process state
-     */
+    private Long projectCode;
+
     private WorkflowExecutionStatus state;
 
-    /**
-     * state history
-     */
     private String stateHistory;
 
     /**
@@ -88,79 +78,35 @@ public class ProcessInstance {
      * recovery flag for failover
      */
     private Flag recovery;
-    /**
-     * start time
-     */
     private Date startTime;
 
-    /**
-     * end time
-     */
+    @TableField(updateStrategy = FieldStrategy.IGNORED)
     private Date endTime;
 
-    /**
-     * run time
-     */
     private int runTimes;
 
-    /**
-     * name
-     */
     private String name;
 
-    /**
-     * host
-     */
     private String host;
 
-    /**
-     * process definition structure
-     */
     @TableField(exist = false)
     private ProcessDefinition processDefinition;
-    /**
-     * process command type
-     */
     private CommandType commandType;
 
-    /**
-     * command parameters
-     */
     private String commandParam;
 
-    /**
-     * node depend type
-     */
     private TaskDependType taskDependType;
 
-    /**
-     * task max try times
-     */
     private int maxTryTimes;
 
-    /**
-     * failure strategy when task failed.
-     */
     private FailureStrategy failureStrategy;
 
-    /**
-     * warning type
-     */
     private WarningType warningType;
 
-    /**
-     * warning group
-     */
     private Integer warningGroupId;
 
-    /**
-     * schedule time
-     */
     private Date scheduleTime;
 
-    /**
-     * command start time
-     */
     private Date commandStartTime;
 
     /**
@@ -174,21 +120,12 @@ public class ProcessInstance {
     @TableField(exist = false)
     private DagData dagData;
 
-    /**
-     * executor id
-     */
     private int executorId;
 
-    /**
-     * executor name
-     */
-    @TableField(exist = false)
     private String executorName;
 
-    /**
-     * tenant code
-     */
-    @TableField(exist = false)
+    private int tenantId;
+
     private String tenantCode;
 
     /**
@@ -248,11 +185,6 @@ public class ProcessInstance {
     private int timeout;
 
     /**
-     * tenant id
-     */
-    private int tenantId;
-
-    /**
      * varPool string
      */
     private String varPool;
@@ -276,6 +208,11 @@ public class ProcessInstance {
      */
     @TableField(exist = false)
     private boolean isBlocked;
+
+    /**
+     * test flag
+     */
+    private int testFlag;
 
     /**
      * set the process name with process define version and timestamp
@@ -349,6 +286,7 @@ public class ProcessInstance {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class StateDesc {
+
         Date time;
         WorkflowExecutionStatus state;
         String desc;

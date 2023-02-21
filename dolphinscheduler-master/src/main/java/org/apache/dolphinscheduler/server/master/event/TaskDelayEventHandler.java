@@ -20,6 +20,7 @@ package org.apache.dolphinscheduler.server.master.event;
 import org.apache.dolphinscheduler.common.enums.StateEventType;
 import org.apache.dolphinscheduler.common.enums.TaskEventType;
 import org.apache.dolphinscheduler.dao.entity.TaskInstance;
+import org.apache.dolphinscheduler.dao.repository.TaskInstanceDao;
 import org.apache.dolphinscheduler.dao.utils.TaskInstanceUtils;
 import org.apache.dolphinscheduler.remote.command.TaskExecuteRunningAckMessage;
 import org.apache.dolphinscheduler.server.master.cache.ProcessInstanceExecCacheManager;
@@ -30,21 +31,23 @@ import org.apache.dolphinscheduler.service.process.ProcessService;
 
 import java.util.Optional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class TaskDelayEventHandler implements TaskEventHandler {
-
-    private final Logger logger = LoggerFactory.getLogger(TaskDelayEventHandler.class);
 
     @Autowired
     private ProcessInstanceExecCacheManager processInstanceExecCacheManager;
 
     @Autowired
     private ProcessService processService;
+
+    @Autowired
+    private TaskInstanceDao taskInstanceDao;
 
     @Autowired
     private WorkflowExecuteThreadPool workflowExecuteThreadPool;
@@ -67,7 +70,7 @@ public class TaskDelayEventHandler implements TaskEventHandler {
         }
         TaskInstance taskInstance = taskInstanceOptional.get();
         if (taskInstance.getState().isFinished()) {
-            logger.warn(
+            log.warn(
                     "The current task status is: {}, will not handle the running event, this event is delay, will discard this event: {}",
                     taskInstance.getState(),
                     taskEvent);
@@ -85,7 +88,7 @@ public class TaskDelayEventHandler implements TaskEventHandler {
             taskInstance.setExecutePath(taskEvent.getExecutePath());
             taskInstance.setPid(taskEvent.getProcessId());
             taskInstance.setAppLink(taskEvent.getAppIds());
-            if (!processService.updateTaskInstance(taskInstance)) {
+            if (!taskInstanceDao.updateTaskInstance(taskInstance)) {
                 throw new TaskEventHandleError("Handle task delay event error, update taskInstance to db failed");
             }
             sendAckToWorker(taskEvent);

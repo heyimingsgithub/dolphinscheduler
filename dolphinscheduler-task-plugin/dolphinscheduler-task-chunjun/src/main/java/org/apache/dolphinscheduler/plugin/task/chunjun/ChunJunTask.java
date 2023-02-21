@@ -17,10 +17,13 @@
 
 package org.apache.dolphinscheduler.plugin.task.chunjun;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.SystemUtils;
-import org.apache.dolphinscheduler.plugin.task.api.AbstractTaskExecutor;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EXIT_CODE_FAILURE;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.RWXR_XR_X;
+
+import org.apache.dolphinscheduler.common.utils.JSONUtils;
+import org.apache.dolphinscheduler.plugin.task.api.AbstractTask;
 import org.apache.dolphinscheduler.plugin.task.api.ShellCommandExecutor;
+import org.apache.dolphinscheduler.plugin.task.api.TaskCallBack;
 import org.apache.dolphinscheduler.plugin.task.api.TaskConstants;
 import org.apache.dolphinscheduler.plugin.task.api.TaskException;
 import org.apache.dolphinscheduler.plugin.task.api.TaskExecutionContext;
@@ -30,7 +33,9 @@ import org.apache.dolphinscheduler.plugin.task.api.parameters.AbstractParameters
 import org.apache.dolphinscheduler.plugin.task.api.parser.ParamUtils;
 import org.apache.dolphinscheduler.plugin.task.api.parser.ParameterUtils;
 import org.apache.dolphinscheduler.spi.enums.Flag;
-import org.apache.dolphinscheduler.spi.utils.JSONUtils;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.SystemUtils;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -41,17 +46,16 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EXIT_CODE_FAILURE;
-import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.RWXR_XR_X;
-
 /**
  * chunjun task
  */
-public class ChunJunTask extends AbstractTaskExecutor {
+public class ChunJunTask extends AbstractTask {
+
     /**
      * chunjun path
      */
@@ -82,7 +86,7 @@ public class ChunJunTask extends AbstractTaskExecutor {
         this.taskExecutionContext = taskExecutionContext;
 
         this.shellCommandExecutor = new ShellCommandExecutor(this::logHandle,
-            taskExecutionContext, logger);
+                taskExecutionContext, log);
     }
 
     /**
@@ -90,8 +94,9 @@ public class ChunJunTask extends AbstractTaskExecutor {
      */
     @Override
     public void init() {
-        logger.info("chunjun task params {}", taskExecutionContext.getTaskParams());
         chunJunParameters = JSONUtils.parseObject(taskExecutionContext.getTaskParams(), ChunJunParameters.class);
+        log.info("Initialize chunjun task params {}",
+                JSONUtils.toPrettyJsonString(taskExecutionContext.getTaskParams()));
 
         if (!chunJunParameters.checkParameters()) {
             throw new RuntimeException("chunjun task params is not valid");
@@ -104,7 +109,7 @@ public class ChunJunTask extends AbstractTaskExecutor {
      * @throws TaskException exception
      */
     @Override
-    public void handle() throws TaskException {
+    public void handle(TaskCallBack taskCallBack) throws TaskException {
         try {
             Map<String, Property> paramsMap = taskExecutionContext.getPrepareParamsMap();
 
@@ -113,15 +118,17 @@ public class ChunJunTask extends AbstractTaskExecutor {
             TaskResponse commandExecuteResult = shellCommandExecutor.run(shellCommandFilePath);
 
             setExitStatusCode(commandExecuteResult.getExitStatusCode());
-            setAppIds(String.join(TaskConstants.COMMA, getApplicationIds()));
+
+            // todo get applicationId
+            setAppIds(String.join(TaskConstants.COMMA, Collections.emptySet()));
             setProcessId(commandExecuteResult.getProcessId());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.error("The current ChunJun Task has been interrupted", e);
+            log.error("The current ChunJun Task has been interrupted", e);
             setExitStatusCode(EXIT_CODE_FAILURE);
             throw new TaskException("The current ChunJun Task has been interrupted", e);
         } catch (Exception e) {
-            logger.error("chunjun task failed.", e);
+            log.error("chunjun task failed.", e);
             setExitStatusCode(EXIT_CODE_FAILURE);
             throw new TaskException("Execute chunjun task failed", e);
         }
@@ -134,12 +141,11 @@ public class ChunJunTask extends AbstractTaskExecutor {
      * @return
      * @throws Exception
      */
-    private String buildChunJunJsonFile(Map<String, Property> paramsMap)
-        throws Exception {
+    private String buildChunJunJsonFile(Map<String, Property> paramsMap) throws Exception {
         // generate json
         String fileName = String.format("%s/%s_job.json",
-            taskExecutionContext.getExecutePath(),
-            taskExecutionContext.getTaskAppId());
+                taskExecutionContext.getExecutePath(),
+                taskExecutionContext.getTaskAppId());
 
         String json = null;
 
@@ -155,7 +161,7 @@ public class ChunJunTask extends AbstractTaskExecutor {
         // replace placeholder
         json = ParameterUtils.convertParameterPlaceholders(json, ParamUtils.convert(paramsMap));
 
-        logger.debug("chunjun job json : {}", json);
+        log.debug("chunjun job json : {}", json);
 
         // create chunjun json file
         FileUtils.writeStringToFile(new File(fileName), json, StandardCharsets.UTF_8);
@@ -168,13 +174,12 @@ public class ChunJunTask extends AbstractTaskExecutor {
      * @return shell command file name
      * @throws Exception if error throws Exception
      */
-    private String buildShellCommandFile(String jobConfigFilePath, Map<String, Property> paramsMap)
-        throws Exception {
+    private String buildShellCommandFile(String jobConfigFilePath, Map<String, Property> paramsMap) throws Exception {
         // generate scripts
         String fileName = String.format("%s/%s_node.%s",
-            taskExecutionContext.getExecutePath(),
-            taskExecutionContext.getTaskAppId(),
-            SystemUtils.IS_OS_WINDOWS ? "bat" : "sh");
+                taskExecutionContext.getExecutePath(),
+                taskExecutionContext.getTaskAppId(),
+                SystemUtils.IS_OS_WINDOWS ? "bat" : "sh");
 
         Path path = new File(fileName).toPath();
 
@@ -214,7 +219,7 @@ public class ChunJunTask extends AbstractTaskExecutor {
         // replace placeholder
         String chunjunCommand = ParameterUtils.convertParameterPlaceholders(command, ParamUtils.convert(paramsMap));
 
-        logger.info("raw script : {}", chunjunCommand);
+        log.info("raw script : {}", chunjunCommand);
 
         // create shell command file
         Set<PosixFilePermission> perms = PosixFilePermissions.fromString(RWXR_XR_X);
@@ -251,13 +256,16 @@ public class ChunJunTask extends AbstractTaskExecutor {
     /**
      * cancel ChunJun process
      *
-     * @param cancelApplication cancelApplication
      * @throws Exception if error throws Exception
      */
     @Override
-    public void cancelApplication(boolean cancelApplication) throws Exception {
+    public void cancel() throws TaskException {
         // cancel process
-        shellCommandExecutor.cancelApplication();
+        try {
+            shellCommandExecutor.cancelApplication();
+        } catch (Exception e) {
+            throw new TaskException("cancel application error", e);
+        }
     }
 
 }

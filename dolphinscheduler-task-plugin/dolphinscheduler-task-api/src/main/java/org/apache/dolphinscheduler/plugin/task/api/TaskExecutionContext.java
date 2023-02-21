@@ -23,13 +23,14 @@ import org.apache.dolphinscheduler.plugin.task.api.model.Property;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.resource.ResourceParametersHelper;
 
 import java.io.Serializable;
-import java.util.Date;
 import java.util.Map;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * to master/worker task transport
@@ -38,6 +39,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class TaskExecutionContext implements Serializable {
 
     private static final long serialVersionUID = -1L;
@@ -55,12 +57,12 @@ public class TaskExecutionContext implements Serializable {
     /**
      * task first submit time.
      */
-    private Date firstSubmitTime;
+    private long firstSubmitTime;
 
     /**
      * task start time
      */
-    private Date startTime;
+    private long startTime;
 
     /**
      * task type
@@ -81,6 +83,11 @@ public class TaskExecutionContext implements Serializable {
      * log path
      */
     private String logPath;
+
+    /**
+     * applicationId path
+     */
+    private String appInfoPath;
 
     /**
      * task json
@@ -115,7 +122,7 @@ public class TaskExecutionContext implements Serializable {
     /**
      * process instance schedule time
      */
-    private Date scheduleTime;
+    private long scheduleTime;
 
     /**
      * process instance global parameters
@@ -161,11 +168,6 @@ public class TaskExecutionContext implements Serializable {
      * taskParams
      */
     private String taskParams;
-
-    /**
-     * envFile
-     */
-    private String envFile;
 
     /**
      * environmentConfig
@@ -223,7 +225,7 @@ public class TaskExecutionContext implements Serializable {
     /**
      * endTime
      */
-    private Date endTime;
+    private long endTime;
 
     /**
      * sql TaskExecutionContext
@@ -261,4 +263,11 @@ public class TaskExecutionContext implements Serializable {
      * max memory
      */
     private Integer memoryMax;
+
+    /**
+     * test flag
+     */
+    private int testFlag;
+
+    private boolean logBufferEnable;
 }

@@ -17,12 +17,9 @@
 
 package org.apache.dolphinscheduler.server.master.processor;
 
-import com.google.common.base.Preconditions;
-import io.netty.channel.Channel;
 import org.apache.dolphinscheduler.common.enums.StateEventType;
 import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
-import org.apache.dolphinscheduler.common.utils.LoggerUtils;
 import org.apache.dolphinscheduler.remote.command.Command;
 import org.apache.dolphinscheduler.remote.command.CommandType;
 import org.apache.dolphinscheduler.remote.command.WorkflowStateEventChangeCommand;
@@ -31,18 +28,22 @@ import org.apache.dolphinscheduler.server.master.event.StateEvent;
 import org.apache.dolphinscheduler.server.master.event.TaskStateEvent;
 import org.apache.dolphinscheduler.server.master.event.WorkflowStateEvent;
 import org.apache.dolphinscheduler.server.master.processor.queue.StateEventResponseService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.dolphinscheduler.service.utils.LoggerUtils;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import com.google.common.base.Preconditions;
+import io.netty.channel.Channel;
 
 /**
  * handle state event received from master/api
  */
 @Component
+@Slf4j
 public class StateEventProcessor implements NettyRequestProcessor {
-
-    private final Logger logger = LoggerFactory.getLogger(StateEventProcessor.class);
 
     @Autowired
     private StateEventResponseService stateEventResponseService;
@@ -65,7 +66,7 @@ public class StateEventProcessor implements NettyRequestProcessor {
             LoggerUtils.setWorkflowAndTaskInstanceIDMDC(stateEvent.getProcessInstanceId(),
                     stateEvent.getTaskInstanceId());
 
-            logger.info("Received state change command, event: {}", stateEvent);
+            log.info("Received state change command, event: {}", stateEvent);
             stateEventResponseService.addStateChangeEvent(stateEvent);
         } finally {
             LoggerUtils.removeWorkflowAndTaskInstanceIdMDC();

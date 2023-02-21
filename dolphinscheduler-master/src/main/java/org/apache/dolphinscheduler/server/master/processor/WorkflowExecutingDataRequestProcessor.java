@@ -28,35 +28,36 @@ import org.apache.dolphinscheduler.server.master.service.ExecutingService;
 
 import java.util.Optional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.google.common.base.Preconditions;
-
 import io.netty.channel.Channel;
 
 /**
  * workflow executing data process from api/master
  */
 @Component
+@Slf4j
 public class WorkflowExecutingDataRequestProcessor implements NettyRequestProcessor {
-
-    private final Logger logger = LoggerFactory.getLogger(WorkflowExecutingDataRequestProcessor.class);
 
     @Autowired
     private ExecutingService executingService;
 
     @Override
     public void process(Channel channel, Command command) {
-        Preconditions.checkArgument(CommandType.WORKFLOW_EXECUTING_DATA_REQUEST == command.getType(), String.format("invalid command type: %s", command.getType()));
+        Preconditions.checkArgument(CommandType.WORKFLOW_EXECUTING_DATA_REQUEST == command.getType(),
+                String.format("invalid command type: %s", command.getType()));
 
-        WorkflowExecutingDataRequestCommand requestCommand = JSONUtils.parseObject(command.getBody(), WorkflowExecutingDataRequestCommand.class);
+        WorkflowExecutingDataRequestCommand requestCommand =
+                JSONUtils.parseObject(command.getBody(), WorkflowExecutingDataRequestCommand.class);
 
-        logger.info("received command, processInstanceId:{}", requestCommand.getProcessInstanceId());
+        log.info("received command, processInstanceId:{}", requestCommand.getProcessInstanceId());
 
-        Optional<WorkflowExecuteDto> workflowExecuteDtoOptional = executingService.queryWorkflowExecutingData(requestCommand.getProcessInstanceId());
+        Optional<WorkflowExecuteDto> workflowExecuteDtoOptional =
+                executingService.queryWorkflowExecutingData(requestCommand.getProcessInstanceId());
 
         WorkflowExecutingDataResponseCommand responseCommand = new WorkflowExecutingDataResponseCommand();
         workflowExecuteDtoOptional.ifPresent(responseCommand::setWorkflowExecuteDto);

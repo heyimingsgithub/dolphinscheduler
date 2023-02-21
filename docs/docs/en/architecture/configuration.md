@@ -17,7 +17,7 @@ The directory structure of DolphinScheduler is as follows:
 │
 ├── licenses                                    directory of licenses
 │
-├── bin                                         directory of DolphinScheduler application commands, configrations scripts
+├── bin                                         directory of DolphinScheduler application commands, configurations scripts
 │   ├── dolphinscheduler-daemon.sh              script to start or shut down DolphinScheduler application
 │   ├── env                                     directory of scripts to load environment variables
 │   │   ├── dolphinscheduler_env.sh             script to export environment variables [eg: JAVA_HOME,HADOOP_HOME, HIVE_HOME ...] when you start or stop service using script `dolphinscheduler-daemon.sh`
@@ -29,7 +29,7 @@ The directory structure of DolphinScheduler is as follows:
 │   ├── status-all.sh                           script to check the status of all services when you deploy DolphinScheduler in `psuedo-cluster` mode or `cluster` mode
 │   └── stop-all.sh                             script to shut down all services when you deploy DolphinScheduler in `psuedo-cluster` mode or `cluster` mode
 │
-├── alert-server                                directory of DolphinScheduler alert-server commands, configrations scripts and libs
+├── alert-server                                directory of DolphinScheduler alert-server commands, configurations scripts and libs
 │   ├── bin
 │   │   └── start.sh                            script to start DolphinScheduler alert-server
 │   ├── conf
@@ -40,7 +40,7 @@ The directory structure of DolphinScheduler is as follows:
 │   │   └── logback-spring.xml                  configurations of alert-service log
 │   └── libs                                    directory of alert-server libs
 │
-├── api-server                                  directory of DolphinScheduler api-server commands, configrations scripts and libs
+├── api-server                                  directory of DolphinScheduler api-server commands, configurations scripts and libs
 │   ├── bin
 │   │   └── start.sh                            script to start DolphinScheduler api-server
 │   ├── conf
@@ -52,7 +52,7 @@ The directory structure of DolphinScheduler is as follows:
 │   ├── libs                                    directory of api-server libs
 │   └── ui                                      directory of api-server related front-end web resources
 │
-├── master-server                               directory of DolphinScheduler master-server commands, configrations scripts and libs
+├── master-server                               directory of DolphinScheduler master-server commands, configurations scripts and libs
 │   ├── bin
 │   │   └── start.sh                            script to start DolphinScheduler master-server
 │   ├── conf
@@ -63,7 +63,7 @@ The directory structure of DolphinScheduler is as follows:
 │   │   └── logback-spring.xml                  configurations of master-service log
 │   └── libs                                    directory of master-server libs
 │
-├── standalone-server                           directory of DolphinScheduler standalone-server commands, configrations scripts and libs
+├── standalone-server                           directory of DolphinScheduler standalone-server commands, configurations scripts and libs
 │   ├── bin
 │   │   └── start.sh                            script to start DolphinScheduler standalone-server
 │   ├── conf
@@ -76,7 +76,7 @@ The directory structure of DolphinScheduler is as follows:
 │   ├── libs                                    directory of standalone-server libs
 │   └── ui                                      directory of standalone-server related front-end web resources
 │  
-├── tools                                       directory of DolphinScheduler metadata tools commands, configrations scripts and libs
+├── tools                                       directory of DolphinScheduler metadata tools commands, configurations scripts and libs
 │   ├── bin
 │   │   └── upgrade-schema.sh                   script to initialize or upgrade DolphinScheduler metadata
 │   ├── conf
@@ -85,7 +85,7 @@ The directory structure of DolphinScheduler is as follows:
 │   ├── libs                                    directory of tool libs
 │   └── sql                                     .sql files to create or upgrade DolphinScheduler metadata
 │  
-├── worker-server                               directory of DolphinScheduler worker-server commands, configrations scripts and libs
+├── worker-server                               directory of DolphinScheduler worker-server commands, configurations scripts and libs
 │       ├── bin
 │       │   └── start.sh                        script to start DolphinScheduler worker-server
 │       ├── conf
@@ -101,8 +101,6 @@ The directory structure of DolphinScheduler is as follows:
 
 ## Configurations in Details
 
-
-
 ### dolphinscheduler-daemon.sh [startup or shutdown DolphinScheduler application]
 
 dolphinscheduler-daemon.sh is responsible for DolphinScheduler startup and shutdown.
@@ -110,6 +108,7 @@ Essentially, start-all.sh or stop-all.sh startup and shutdown the cluster via do
 Currently, DolphinScheduler just makes a basic config, remember to config further JVM options based on your practical situation of resources.
 
 Default simplified parameters are:
+
 ```bash
 export DOLPHINSCHEDULER_OPTS="
 -server
@@ -157,8 +156,8 @@ The default configuration is as follows:
 
 Note that DolphinScheduler also supports database configuration through `bin/env/dolphinscheduler_env.sh`.
 
-
 ### Zookeeper related configuration
+
 DolphinScheduler uses Zookeeper for cluster management, fault tolerance, event monitoring and other functions. Configuration file location:
 |Service| Configuration file  |
 |--|--|
@@ -225,9 +224,10 @@ The default configuration is as follows:
 |sudo.enable | true | whether to enable sudo|
 |alert.rpc.port | 50052 | the RPC port of Alert Server|
 |zeppelin.rest.url | http://localhost:8080 | the RESTful API url of zeppelin|
-
+|appId.collect | log | way to collect applicationId, if use aop, alter the configuration from log to aop, annotation of applicationId auto collection related configuration in `bin/env/dolphinscheduler_env.sh` should be removed. Note: Aop way doesn't support submitting yarn job on remote host by client mode like Beeline, and will failure if override applicationId collection-related environment configuration in dolphinscheduler_env.sh, and .|
 
 ### Api-server related configuration
+
 Location: `api-server/conf/application.yaml`
 
 |Parameters | Default value| Description|
@@ -248,8 +248,9 @@ Location: `api-server/conf/application.yaml`
 |security.authentication.ldap.base.dn|dc=example,dc=com|LDAP base dn|
 |security.authentication.ldap.username|cn=read-only-admin,dc=example,dc=com|LDAP username|
 |security.authentication.ldap.password|password|LDAP password|
-|security.authentication.ldap.user.identity.attribute|uid|LDAP user identity attribute|
-|security.authentication.ldap.user.email.attribute|mail|LDAP user email attribute|
+|security.authentication.ldap.user.identity-attribute|uid|LDAP user identity attribute|
+|security.authentication.ldap.user.email-attribute|mail|LDAP user email attribute|
+|security.authentication.ldap.user.not-exist-action|CREATE|action when ldap user is not exist,default value: CREATE. Optional values include(CREATE,DENY)|
 |traffic.control.global.switch|false|traffic control global switch|
 |traffic.control.max-global-qps-rate|300|global max request number per second|
 |traffic.control.tenant-switch|false|traffic control tenant switch|
@@ -257,6 +258,7 @@ Location: `api-server/conf/application.yaml`
 |traffic.control.customize-tenant-qps-rate||customize tenant max request number per second|
 
 ### Master Server related configuration
+
 Location: `master-server/conf/application.yaml`
 
 |Parameters | Default value| Description|
@@ -276,10 +278,11 @@ Location: `master-server/conf/application.yaml`
 |master.failover-interval|10|failover interval, the unit is minute|
 |master.kill-yarn-job-when-task-failover|true|whether to kill yarn job when failover taskInstance|
 |master.registry-disconnect-strategy.strategy|stop|Used when the master disconnect from registry, default value: stop. Optional values include stop, waiting|
-|master.registry-disconnect-strategy.max-waiting-time|100s|Used when the master disconnect from registry, and the disconnect strategy is waiting, this config means the master will waiting to reconnect to registry in given times, and after the waiting times, if the master still cannot connect to registry, will stop itself, if the value is 0s, the Master will waitting infinitely|
-
+|master.registry-disconnect-strategy.max-waiting-time|100s|Used when the master disconnect from registry, and the disconnect strategy is waiting, this config means the master will waiting to reconnect to registry in given times, and after the waiting times, if the master still cannot connect to registry, will stop itself, if the value is 0s, the Master will wait infinitely|
+|master.worker-group-refresh-interval|10s|The interval to refresh worker group from db to memory|
 
 ### Worker Server related configuration
+
 Location: `worker-server/conf/application.yaml`
 
 |Parameters | Default value| Description|
@@ -291,20 +294,20 @@ Location: `worker-server/conf/application.yaml`
 |worker.tenant-auto-create|true|tenant corresponds to the user of the system, which is used by the worker to submit the job. If system does not have this user, it will be automatically created after the parameter worker.tenant.auto.create is true.|
 |worker.max-cpu-load-avg|-1|worker max CPU load avg, only higher than the system CPU load average, worker server can be dispatched tasks. default value -1: the number of CPU cores * 2|
 |worker.reserved-memory|0.3|worker reserved memory, only lower than system available memory, worker server can be dispatched tasks. default value 0.3, the unit is G|
-|worker.groups|default|worker groups separated by comma, e.g., 'worker.groups=default,test' <br> worker will join corresponding group according to this config when startup|
 |worker.alert-listen-host|localhost|the alert listen host of worker|
 |worker.alert-listen-port|50052|the alert listen port of worker|
 |worker.registry-disconnect-strategy.strategy|stop|Used when the worker disconnect from registry, default value: stop. Optional values include stop, waiting|
-|worker.registry-disconnect-strategy.max-waiting-time|100s|Used when the worker disconnect from registry, and the disconnect strategy is waiting, this config means the worker will waiting to reconnect to registry in given times, and after the waiting times, if the worker still cannot connect to registry, will stop itself, if the value is 0s, will waitting infinitely |
+|worker.registry-disconnect-strategy.max-waiting-time|100s|Used when the worker disconnect from registry, and the disconnect strategy is waiting, this config means the worker will waiting to reconnect to registry in given times, and after the waiting times, if the worker still cannot connect to registry, will stop itself, if the value is 0s, will wait infinitely |
+|worker.task-execute-threads-full-policy|REJECT|If REJECT, when the task waiting in the worker reaches exec-threads, it will reject the received task and the Master will redispatch it; If CONTINUE, it will put the task into the worker's execution queue and wait for a free thread to start execution|
 
 ### Alert Server related configuration
+
 Location: `alert-server/conf/application.yaml`
 
 |Parameters | Default value| Description|
 |--|--|--|
 |server.port|50053|the port of Alert Server|
 |alert.port|50052|the port of alert|
-
 
 ### Quartz related configuration
 
@@ -317,61 +320,64 @@ This part describes quartz configs and configure them based on your practical si
 
 The default configuration is as follows:
 
-|Parameters | Default value|
-|--|--|
-|spring.quartz.properties.org.quartz.threadPool.threadPriority | 5|
-|spring.quartz.properties.org.quartz.jobStore.isClustered | true|
-|spring.quartz.properties.org.quartz.jobStore.class | org.quartz.impl.jdbcjobstore.JobStoreTX|
-|spring.quartz.properties.org.quartz.scheduler.instanceId | AUTO|
-|spring.quartz.properties.org.quartz.jobStore.tablePrefix | QRTZ_|
-|spring.quartz.properties.org.quartz.jobStore.acquireTriggersWithinLock|true|
-|spring.quartz.properties.org.quartz.scheduler.instanceName | DolphinScheduler|
-|spring.quartz.properties.org.quartz.threadPool.class | org.quartz.simpl.SimpleThreadPool|
-|spring.quartz.properties.org.quartz.jobStore.useProperties | false|
-|spring.quartz.properties.org.quartz.threadPool.makeThreadsDaemons | true|
-|spring.quartz.properties.org.quartz.threadPool.threadCount | 25|
-|spring.quartz.properties.org.quartz.jobStore.misfireThreshold | 60000|
-|spring.quartz.properties.org.quartz.scheduler.makeSchedulerThreadDaemon | true|
-|spring.quartz.properties.org.quartz.jobStore.driverDelegateClass | org.quartz.impl.jdbcjobstore.PostgreSQLDelegate|
-|spring.quartz.properties.org.quartz.jobStore.clusterCheckinInterval | 5000|
+|                               Parameters                                |                  Default value                  |
+|-------------------------------------------------------------------------|-------------------------------------------------|
+| spring.quartz.properties.org.quartz.jobStore.isClustered                | true                                            |
+| spring.quartz.properties.org.quartz.jobStore.class                      | org.quartz.impl.jdbcjobstore.JobStoreTX         |
+| spring.quartz.properties.org.quartz.scheduler.instanceId                | AUTO                                            |
+| spring.quartz.properties.org.quartz.jobStore.tablePrefix                | QRTZ_                                           |
+| spring.quartz.properties.org.quartz.jobStore.acquireTriggersWithinLock  | true                                            |
+| spring.quartz.properties.org.quartz.scheduler.instanceName              | DolphinScheduler                                |
+| spring.quartz.properties.org.quartz.jobStore.useProperties              | false                                           |
+| spring.quartz.properties.org.quartz.jobStore.misfireThreshold           | 60000                                           |
+| spring.quartz.properties.org.quartz.scheduler.makeSchedulerThreadDaemon | true                                            |
+| spring.quartz.properties.org.quartz.jobStore.driverDelegateClass        | org.quartz.impl.jdbcjobstore.PostgreSQLDelegate |
+| spring.quartz.properties.org.quartz.jobStore.clusterCheckinInterval     | 5000                                            |
 
+The above configuration items is the same in *Master Server* and *Api Server*, but their *Quartz Scheduler* threadpool configuration is different.
+
+The default quartz threadpool configuration in *Master Server* is as follows:
+
+|                            Parameters                             |           Default value           |
+|-------------------------------------------------------------------|-----------------------------------|
+| spring.quartz.properties.org.quartz.threadPool.makeThreadsDaemons | true                              |
+| spring.quartz.properties.org.quartz.threadPool.threadCount        | 25                                |
+| spring.quartz.properties.org.quartz.threadPool.threadPriority     | 5                                 |
+| spring.quartz.properties.org.quartz.threadPool.class              | org.quartz.simpl.SimpleThreadPool |
+
+Since *Api Server* will not start *Quartz Scheduler* instance, as a client only, therefore it's threadpool is configured as `QuartzZeroSizeThreadPool` which has zero thread;
+The default configuration is as follows:
+
+|                      Parameters                      |                             Default value                             |
+|------------------------------------------------------|-----------------------------------------------------------------------|
+| spring.quartz.properties.org.quartz.threadPool.class | org.apache.dolphinscheduler.scheduler.quartz.QuartzZeroSizeThreadPool |
 
 ### dolphinscheduler_env.sh [load environment variables configs]
 
 When using shell to commit tasks, DolphinScheduler will export environment variables from `bin/env/dolphinscheduler_env.sh`. The
-mainly configuration including `JAVA_HOME`, mata database, registry center, and task configuration.
+mainly configuration including `JAVA_HOME` and other environment paths.
 
 ```bash
 # JAVA_HOME, will use it to start DolphinScheduler server
 export JAVA_HOME=${JAVA_HOME:-/opt/soft/java}
 
-# Database related configuration, set database type, username and password
-export DATABASE=${DATABASE:-postgresql}
-export SPRING_PROFILES_ACTIVE=${DATABASE}
-export SPRING_DATASOURCE_URL
-export SPRING_DATASOURCE_USERNAME
-export SPRING_DATASOURCE_PASSWORD
-
-# DolphinScheduler server related configuration
-export SPRING_CACHE_TYPE=${SPRING_CACHE_TYPE:-none}
-export SPRING_JACKSON_TIME_ZONE=${SPRING_JACKSON_TIME_ZONE:-UTC}
-export MASTER_FETCH_COMMAND_NUM=${MASTER_FETCH_COMMAND_NUM:-10}
-
-# Registry center configuration, determines the type and link of the registry center
-export REGISTRY_TYPE=${REGISTRY_TYPE:-zookeeper}
-export REGISTRY_ZOOKEEPER_CONNECT_STRING=${REGISTRY_ZOOKEEPER_CONNECT_STRING:-localhost:2181}
-
 # Tasks related configurations, need to change the configuration if you use the related tasks.
 export HADOOP_HOME=${HADOOP_HOME:-/opt/soft/hadoop}
 export HADOOP_CONF_DIR=${HADOOP_CONF_DIR:-/opt/soft/hadoop/etc/hadoop}
-export SPARK_HOME1=${SPARK_HOME1:-/opt/soft/spark1}
-export SPARK_HOME2=${SPARK_HOME2:-/opt/soft/spark2}
+export SPARK_HOME=${SPARK_HOME:-/opt/soft/spark}
 export PYTHON_HOME=${PYTHON_HOME:-/opt/soft/python}
 export HIVE_HOME=${HIVE_HOME:-/opt/soft/hive}
 export FLINK_HOME=${FLINK_HOME:-/opt/soft/flink}
 export DATAX_HOME=${DATAX_HOME:-/opt/soft/datax}
 
-export PATH=$HADOOP_HOME/bin:$SPARK_HOME1/bin:$SPARK_HOME2/bin:$PYTHON_HOME/bin:$JAVA_HOME/bin:$HIVE_HOME/bin:$FLINK_HOME/bin:$DATAX_HOME/bin:$PATH
+export PATH=$HADOOP_HOME/bin:$SPARK_HOME/bin:$PYTHON_HOME/bin:$JAVA_HOME/bin:$HIVE_HOME/bin:$FLINK_HOME/bin:$DATAX_HOME/bin:$PATH
+
+# applicationId auto collection related configuration, the following configurations are unnecessary if setting appId.collect=log
+export HADOOP_CLASSPATH=`hadoop classpath`:${DOLPHINSCHEDULER_HOME}/tools/libs/*
+export SPARK_DIST_CLASSPATH=$HADOOP_CLASSPATH:$SPARK_DIST_CLASS_PATH
+export HADOOP_CLIENT_OPTS="-javaagent:${DOLPHINSCHEDULER_HOME}/tools/libs/aspectjweaver-1.9.7.jar":$HADOOP_CLIENT_OPTS
+export SPARK_SUBMIT_OPTS="-javaagent:${DOLPHINSCHEDULER_HOME}/tools/libs/aspectjweaver-1.9.7.jar":$SPARK_SUBMIT_OPTS
+export FLINK_ENV_JAVA_OPTS="-javaagent:${DOLPHINSCHEDULER_HOME}/tools/libs/aspectjweaver-1.9.7.jar":$FLINK_ENV_JAVA_OPTS
 ```
 
 ### Log related configuration

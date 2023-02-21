@@ -44,6 +44,22 @@ export function useFlink(model: { [field: string]: any }): IJsonItem[] {
   const appNameSpan = computed(() => (model.deployMode !== 'local' ? 24 : 0))
 
   const deployModeOptions = computed(() => {
+    if (model.programType === 'SQL') {
+      return [
+        {
+          label: 'per-job/cluster',
+          value: 'cluster'
+        },
+        {
+          label: 'local',
+          value: 'local'
+        },
+        {
+          label: 'standalone',
+          value: 'standalone'
+        }
+      ]
+    }
     if (model.flinkVersion === '<1.10') {
       return [
         {

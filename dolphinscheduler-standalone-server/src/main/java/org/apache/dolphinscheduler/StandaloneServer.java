@@ -21,8 +21,9 @@ import org.apache.curator.test.TestingServer;
 
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationFailedEvent;
@@ -30,12 +31,9 @@ import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 
-import lombok.NonNull;
-
 @SpringBootApplication
+@Slf4j
 public class StandaloneServer implements ApplicationListener<ApplicationEvent> {
-
-    private static final Logger logger = LoggerFactory.getLogger(StandaloneServer.class);
 
     private static TestingServer zookeeperServer;
 
@@ -50,9 +48,9 @@ public class StandaloneServer implements ApplicationListener<ApplicationEvent> {
         if (event instanceof ApplicationFailedEvent || event instanceof ContextClosedEvent) {
             try (TestingServer closedServer = zookeeperServer) {
                 // close the zookeeper server
-                logger.info("Receive spring context close event: {}, will closed zookeeper server", event);
+                log.info("Receive spring context close event: {}, will closed zookeeper server", event);
             } catch (IOException e) {
-                logger.error("Close zookeeper server error", e);
+                log.error("Close zookeeper server error", e);
             }
         }
     }

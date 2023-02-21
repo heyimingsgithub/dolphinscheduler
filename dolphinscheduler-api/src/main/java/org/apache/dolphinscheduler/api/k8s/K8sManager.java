@@ -17,16 +17,16 @@
 
 package org.apache.dolphinscheduler.api.k8s;
 
-import org.apache.dolphinscheduler.common.utils.ClusterConfUtils;
 import org.apache.dolphinscheduler.dao.entity.Cluster;
 import org.apache.dolphinscheduler.dao.mapper.ClusterMapper;
 import org.apache.dolphinscheduler.remote.exceptions.RemotingException;
+import org.apache.dolphinscheduler.service.utils.ClusterConfUtils;
 
 import java.util.Hashtable;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -38,9 +38,9 @@ import io.fabric8.kubernetes.client.KubernetesClient;
  * use multiple environment feature
  */
 @Component
+@Slf4j
 public class K8sManager {
 
-    private static final Logger logger = LoggerFactory.getLogger(K8sManager.class);
     /**
      * cache k8s client
      */
@@ -67,7 +67,8 @@ public class K8sManager {
      * @param clusterCode
      * @return new client if need updated
      */
-    public synchronized KubernetesClient getAndUpdateK8sClient(Long clusterCode, boolean update) throws RemotingException {
+    public synchronized KubernetesClient getAndUpdateK8sClient(Long clusterCode,
+                                                               boolean update) throws RemotingException {
         if (null == clusterCode) {
             return null;
         }
@@ -83,7 +84,6 @@ public class K8sManager {
         }
         return clientMap.get(clusterCode);
     }
-
 
     private void deleteK8sClientInner(Long clusterCode) {
         if (clusterCode == null) {
@@ -112,7 +112,7 @@ public class K8sManager {
                 client = getClient(k8sConfig);
                 clientMap.put(clusterCode, client);
             } catch (RemotingException e) {
-                logger.error("cluster code ={},fail to get k8s ApiClient:  {}", clusterCode, e.getMessage());
+                log.error("cluster code ={},fail to get k8s ApiClient:  {}", clusterCode, e.getMessage());
                 throw new RemotingException("fail to get k8s ApiClient:" + e.getMessage());
             }
         }
@@ -123,7 +123,7 @@ public class K8sManager {
             Config config = Config.fromKubeconfig(configYaml);
             return new DefaultKubernetesClient(config);
         } catch (Exception e) {
-            logger.error("fail to get k8s ApiClient", e);
+            log.error("Fail to get k8s ApiClient", e);
             throw new RemotingException("fail to get k8s ApiClient:" + e.getMessage());
         }
     }

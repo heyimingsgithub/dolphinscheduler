@@ -17,17 +17,17 @@
 
 package org.apache.dolphinscheduler.plugin.task.dinky;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.MissingNode;
-import org.apache.dolphinscheduler.plugin.task.api.AbstractTaskExecutor;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EXIT_CODE_FAILURE;
+
+import org.apache.dolphinscheduler.common.utils.JSONUtils;
+import org.apache.dolphinscheduler.plugin.task.api.AbstractRemoteTask;
+import org.apache.dolphinscheduler.plugin.task.api.TaskCallBack;
 import org.apache.dolphinscheduler.plugin.task.api.TaskConstants;
 import org.apache.dolphinscheduler.plugin.task.api.TaskException;
 import org.apache.dolphinscheduler.plugin.task.api.TaskExecutionContext;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.AbstractParameters;
-import org.apache.dolphinscheduler.spi.utils.JSONUtils;
-import org.apache.dolphinscheduler.spi.utils.StringUtils;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
@@ -40,12 +40,17 @@ import org.apache.http.util.EntityUtils;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EXIT_CODE_FAILURE;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.MissingNode;
 
-public class DinkyTask extends AbstractTaskExecutor {
+public class DinkyTask extends AbstractRemoteTask {
 
     /**
      * taskExecutionContext
@@ -68,17 +73,23 @@ public class DinkyTask extends AbstractTaskExecutor {
     }
 
     @Override
+    public List<String> getApplicationIds() throws TaskException {
+        return Collections.emptyList();
+    }
+
+    @Override
     public void init() {
         final String taskParams = taskExecutionContext.getTaskParams();
-        logger.info("dinky task params:{}", taskParams);
         this.dinkyParameters = JSONUtils.parseObject(taskParams, DinkyParameters.class);
+        log.info("Initialize dinky task params: {}", JSONUtils.toPrettyJsonString(dinkyParameters));
         if (this.dinkyParameters == null || !this.dinkyParameters.checkParameters()) {
             throw new DinkyTaskException("dinky task params is not valid");
         }
     }
 
+    // todo split handle to submit and track
     @Override
-    public void handle() throws TaskException {
+    public void handle(TaskCallBack taskCallBack) throws TaskException {
         try {
 
             String address = this.dinkyParameters.getAddress();
@@ -101,20 +112,23 @@ public class DinkyTask extends AbstractTaskExecutor {
                     if (!checkResult(jobInstanceInfoResult)) {
                         break;
                     }
-                    String jobInstanceStatus = jobInstanceInfoResult.get(DinkyTaskConstants.API_RESULT_DATAS).get("status").asText();
+                    String jobInstanceStatus =
+                            jobInstanceInfoResult.get(DinkyTaskConstants.API_RESULT_DATAS).get("status").asText();
                     switch (jobInstanceStatus) {
                         case DinkyTaskConstants.STATUS_FINISHED:
                             final int exitStatusCode = mapStatusToExitCode(status);
                             // Use address-taskId as app id
                             setAppIds(String.format("%s-%s", address, taskId));
                             setExitStatusCode(exitStatusCode);
-                            logger.info("dinky task finished with results: {}", result.get(DinkyTaskConstants.API_RESULT_DATAS));
+                            log.info("dinky task finished with results: {}",
+                                    result.get(DinkyTaskConstants.API_RESULT_DATAS));
                             finishFlag = true;
                             break;
                         case DinkyTaskConstants.STATUS_FAILED:
                         case DinkyTaskConstants.STATUS_CANCELED:
                         case DinkyTaskConstants.STATUS_UNKNOWN:
-                            errorHandle(jobInstanceInfoResult.get(DinkyTaskConstants.API_RESULT_DATAS).get("error").asText());
+                            errorHandle(jobInstanceInfoResult.get(DinkyTaskConstants.API_RESULT_DATAS).get("error")
+                                    .asText());
                             finishFlag = true;
                             break;
                         default:
@@ -124,10 +138,20 @@ public class DinkyTask extends AbstractTaskExecutor {
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            logger.error("Execute dinkyTask failed", ex);
+            log.error("Execute dinkyTask failed", ex);
             setExitStatusCode(EXIT_CODE_FAILURE);
             throw new TaskException("Execute dinkyTask failed", ex);
         }
+    }
+
+    @Override
+    public void submitApplication() throws TaskException {
+
+    }
+
+    @Override
+    public void trackApplicationStatus() throws TaskException {
+
     }
 
     /**
@@ -157,7 +181,7 @@ public class DinkyTask extends AbstractTaskExecutor {
 
     private void errorHandle(Object msg) {
         setExitStatusCode(TaskConstants.EXIT_CODE_FAILURE);
-        logger.error("dinky task submit failed with error: {}", msg);
+        log.error("dinky task submit failed with error: {}", msg);
     }
 
     @Override
@@ -166,19 +190,18 @@ public class DinkyTask extends AbstractTaskExecutor {
     }
 
     @Override
-    public void cancelApplication(boolean status) throws Exception {
-        super.cancelApplication(status);
+    public void cancelApplication() throws TaskException {
         String address = this.dinkyParameters.getAddress();
         String taskId = this.dinkyParameters.getTaskId();
-        logger.info("trying terminate dinky task, taskId: {}, address: {}, taskId: {}",
-            this.taskExecutionContext.getTaskInstanceId(),
-            address,
-            taskId);
+        log.info("trying terminate dinky task, taskId: {}, address: {}, taskId: {}",
+                this.taskExecutionContext.getTaskInstanceId(),
+                address,
+                taskId);
         cancelTask(address, taskId);
-        logger.warn("dinky task terminated, taskId: {}, address: {}, taskId: {}",
-            this.taskExecutionContext.getTaskInstanceId(),
-            address,
-            taskId);
+        log.warn("dinky task terminated, taskId: {}, address: {}, taskId: {}",
+                this.taskExecutionContext.getTaskInstanceId(),
+                address,
+                taskId);
     }
 
     private JsonNode submitTask(String address, String taskId) {
@@ -212,7 +235,7 @@ public class DinkyTask extends AbstractTaskExecutor {
         try {
             result = mapper.readTree(res);
         } catch (JsonProcessingException e) {
-            logger.error("dinky task submit failed with error", e);
+            log.error("dinky task submit failed with error", e);
         }
         return result;
     }
@@ -230,18 +253,18 @@ public class DinkyTask extends AbstractTaskExecutor {
             }
             URI uri = uriBuilder.build();
             httpGet = new HttpGet(uri);
-            logger.info("access url: {}", uri);
+            log.info("access url: {}", uri);
             HttpResponse response = httpClient.execute(httpGet);
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 result = EntityUtils.toString(response.getEntity());
-                logger.info("dinky task succeed with results: {}", result);
+                log.info("dinky task succeed with results: {}", result);
             } else {
-                logger.error("dinky task terminated,response: {}", response);
+                log.error("dinky task terminated,response: {}", response);
             }
         } catch (IllegalArgumentException ie) {
-            logger.error("dinky task terminated: {}", ie.getMessage());
+            log.error("dinky task terminated: {}", ie.getMessage());
         } catch (Exception e) {
-            logger.error("dinky task terminated: ", e);
+            log.error("dinky task terminated: ", e);
         } finally {
             if (null != httpGet) {
                 httpGet.releaseConnection();
@@ -263,14 +286,14 @@ public class DinkyTask extends AbstractTaskExecutor {
             HttpResponse response = httpClient.execute(httpPost);
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 result = EntityUtils.toString(response.getEntity());
-                logger.info("dinky task succeed with results: {}", result);
+                log.info("dinky task succeed with results: {}", result);
             } else {
-                logger.error("dinky task terminated,response: {}", response);
+                log.error("dinky task terminated,response: {}", response);
             }
         } catch (IllegalArgumentException ie) {
-            logger.error("dinky task terminated: {}", ie.getMessage());
+            log.error("dinky task terminated: {}", ie.getMessage());
         } catch (Exception he) {
-            logger.error("dinky task terminated: ", he);
+            log.error("dinky task terminated: ", he);
         }
         return result;
     }

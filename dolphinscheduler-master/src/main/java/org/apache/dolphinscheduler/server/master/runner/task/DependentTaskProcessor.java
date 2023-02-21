@@ -17,8 +17,9 @@
 
 package org.apache.dolphinscheduler.server.master.runner.task;
 
-import com.google.auto.service.AutoService;
-import org.apache.dolphinscheduler.common.Constants;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_DEPENDENT;
+
+import org.apache.dolphinscheduler.common.constants.Constants;
 import org.apache.dolphinscheduler.common.utils.NetUtils;
 import org.apache.dolphinscheduler.dao.entity.ProcessDefinition;
 import org.apache.dolphinscheduler.dao.entity.Project;
@@ -34,8 +35,8 @@ import org.apache.dolphinscheduler.plugin.task.api.model.DependentTaskModel;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.DependentParameters;
 import org.apache.dolphinscheduler.plugin.task.api.utils.DependentUtils;
 import org.apache.dolphinscheduler.server.master.utils.DependentExecute;
-import org.apache.dolphinscheduler.server.utils.LogUtils;
 import org.apache.dolphinscheduler.service.bean.SpringApplicationContext;
+import org.apache.dolphinscheduler.service.utils.LogUtils;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -47,7 +48,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_DEPENDENT;
+import com.google.auto.service.AutoService;
 
 /**
  * dependent task processor
@@ -57,9 +58,11 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
 
     private DependentParameters dependentParameters;
 
-    private final ProcessDefinitionMapper processDefinitionMapper = SpringApplicationContext.getBean(ProcessDefinitionMapper.class);
+    private final ProcessDefinitionMapper processDefinitionMapper =
+            SpringApplicationContext.getBean(ProcessDefinitionMapper.class);
 
-    private final TaskDefinitionMapper taskDefinitionMapper = SpringApplicationContext.getBean(TaskDefinitionMapper.class);
+    private final TaskDefinitionMapper taskDefinitionMapper =
+            SpringApplicationContext.getBean(TaskDefinitionMapper.class);
 
     private final ProjectMapper projectMapper = SpringApplicationContext.getBean(ProjectMapper.class);
 
@@ -85,6 +88,11 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
 
     DependResult result;
 
+    /**
+     * test flag
+     */
+    private int testFlag;
+
     boolean allDependentItemFinished;
 
     @Override
@@ -97,7 +105,7 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
                 return false;
             }
             this.setTaskExecutionLogger();
-            logger.info("Dependent task submit success");
+            log.info("Dependent task submit success");
             taskInstance.setLogPath(LogUtils.getTaskLogPath(taskInstance.getFirstSubmitTime(),
                     processInstance.getProcessDefinitionCode(),
                     processInstance.getProcessDefinitionVersion(),
@@ -106,12 +114,12 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
             taskInstance.setHost(NetUtils.getAddr(masterConfig.getListenPort()));
             taskInstance.setState(TaskExecutionStatus.RUNNING_EXECUTION);
             taskInstance.setStartTime(new Date());
-            processService.updateTaskInstance(taskInstance);
+            taskInstanceDao.updateTaskInstance(taskInstance);
             initDependParameters();
-            logger.info("Success initialize dependent task parameters, the dependent data is: {}", dependentDate);
+            log.info("Success initialize dependent task parameters, the dependent data is: {}", dependentDate);
             return true;
         } catch (Exception ex) {
-            logger.error("Submit/Initialize dependent task error", ex);
+            log.error("Submit/Initialize dependent task error", ex);
             return false;
         }
     }
@@ -145,7 +153,7 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
                 && TaskTimeoutStrategy.WARNFAILED != taskTimeoutStrategy) {
             return true;
         }
-        logger.info("dependent taskInstanceId: {} timeout, taskName: {}, strategy: {} ",
+        log.info("dependent taskInstanceId: {} timeout, taskName: {}, strategy: {} ",
                 taskInstance.getId(), taskInstance.getName(), taskTimeoutStrategy.getDescp());
         result = DependResult.FAILED;
         endTask();
@@ -162,6 +170,7 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
         } else {
             this.dependentDate = new Date();
         }
+        this.testFlag = processInstance.getTestFlag();
         // check dependent project is exist
         List<DependentTaskModel> dependTaskList = dependentParameters.getDependTaskList();
         Set<Long> projectCodes = new HashSet<>();
@@ -174,35 +183,44 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
                 taskDefinitionCodes.add(dependentItem.getDepTaskCode());
             });
         });
-        projectCodeMap = projectMapper.queryByCodes(projectCodes).stream().collect(Collectors.toMap(Project::getCode, Function.identity()));
-        processDefinitionMap = processDefinitionMapper.queryByCodes(processDefinitionCodes).stream().collect(Collectors.toMap(ProcessDefinition::getCode, Function.identity()));
-        taskDefinitionMap = taskDefinitionMapper.queryByCodeList(taskDefinitionCodes).stream().collect(Collectors.toMap(TaskDefinition::getCode, Function.identity()));
+        projectCodeMap = projectMapper.queryByCodes(projectCodes).stream()
+                .collect(Collectors.toMap(Project::getCode, Function.identity()));
+        processDefinitionMap = processDefinitionMapper.queryByCodes(processDefinitionCodes).stream()
+                .collect(Collectors.toMap(ProcessDefinition::getCode, Function.identity()));
+        taskDefinitionMap = taskDefinitionMapper.queryByCodeList(taskDefinitionCodes).stream()
+                .collect(Collectors.toMap(TaskDefinition::getCode, Function.identity()));
 
         for (DependentTaskModel taskModel : dependentParameters.getDependTaskList()) {
-            logger.info("Add sub dependent check tasks, dependent relation: {}", taskModel.getRelation());
+            log.info("Add sub dependent check tasks, dependent relation: {}", taskModel.getRelation());
             for (DependentItem dependentItem : taskModel.getDependItemList()) {
                 Project project = projectCodeMap.get(dependentItem.getProjectCode());
                 if (project == null) {
-                    logger.error("The dependent task's project is not exist, dependentItem: {}", dependentItem);
-                    throw new RuntimeException("The dependent task's project is not exist, dependentItem: " + dependentItem);
+                    log.error("The dependent task's project is not exist, dependentItem: {}", dependentItem);
+                    throw new RuntimeException(
+                            "The dependent task's project is not exist, dependentItem: " + dependentItem);
                 }
                 ProcessDefinition processDefinition = processDefinitionMap.get(dependentItem.getDefinitionCode());
                 if (processDefinition == null) {
-                    logger.error("The dependent task's workflow is not exist, dependentItem: {}", dependentItem);
-                    throw new RuntimeException("The dependent task's workflow is not exist, dependentItem: " + dependentItem);
+                    log.error("The dependent task's workflow is not exist, dependentItem: {}", dependentItem);
+                    throw new RuntimeException(
+                            "The dependent task's workflow is not exist, dependentItem: " + dependentItem);
                 }
                 if (dependentItem.getDepTaskCode() == Constants.DEPENDENT_ALL_TASK_CODE) {
-                    logger.info("Add dependent task: projectName: {}, workflowName: {}, taskName: ALL, dependentKey: {}",
+                    log.info(
+                            "Add dependent task: projectName: {}, workflowName: {}, taskName: ALL, dependentKey: {}",
                             project.getName(), processDefinition.getName(), dependentItem.getKey());
 
                 } else {
                     TaskDefinition taskDefinition = taskDefinitionMap.get(dependentItem.getDepTaskCode());
                     if (taskDefinition == null) {
-                        logger.error("The dependent task's taskDefinition is not exist, dependentItem: {}", dependentItem);
-                        throw new RuntimeException("The dependent task's taskDefinition is not exist, dependentItem: " + dependentItem);
+                        log.error("The dependent task's taskDefinition is not exist, dependentItem: {}",
+                                dependentItem);
+                        throw new RuntimeException(
+                                "The dependent task's taskDefinition is not exist, dependentItem: " + dependentItem);
                     }
-                    logger.info("Add dependent task: projectName: {}, workflowName: {}, taskName: {}, dependentKey: {}",
-                            project.getName(), processDefinition.getName(), taskDefinition.getName(), dependentItem.getKey());
+                    log.info("Add dependent task: projectName: {}, workflowName: {}, taskName: {}, dependentKey: {}",
+                            project.getName(), processDefinition.getName(), taskDefinition.getName(),
+                            dependentItem.getKey());
                 }
             }
             this.dependentTaskList.add(new DependentExecute(taskModel.getDependItemList(), taskModel.getRelation()));
@@ -213,7 +231,7 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
     protected boolean pauseTask() {
         this.taskInstance.setState(TaskExecutionStatus.PAUSE);
         this.taskInstance.setEndTime(new Date());
-        processService.saveTaskInstance(taskInstance);
+        taskInstanceDao.upsertTaskInstance(taskInstance);
         return true;
     }
 
@@ -221,7 +239,7 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
     protected boolean killTask() {
         this.taskInstance.setState(TaskExecutionStatus.KILL);
         this.taskInstance.setEndTime(new Date());
-        processService.saveTaskInstance(taskInstance);
+        taskInstanceDao.upsertTaskInstance(taskInstance);
         return true;
     }
 
@@ -237,10 +255,11 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
                 if (!dependResultMap.containsKey(entry.getKey())) {
                     dependResultMap.put(entry.getKey(), entry.getValue());
                     // save depend result to log
-                    logger.info("dependent item complete, dependentKey: {}, result: {}, dependentDate: {}", entry.getKey(), entry.getValue(), dependentDate);
+                    log.info("dependent item complete, dependentKey: {}, result: {}, dependentDate: {}",
+                            entry.getKey(), entry.getValue(), dependentDate);
                 }
             }
-            if (!dependentExecute.finish(dependentDate)) {
+            if (!dependentExecute.finish(dependentDate, testFlag)) {
                 finish = false;
             }
         }
@@ -255,11 +274,11 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
     private DependResult getTaskDependResult() {
         List<DependResult> dependResultList = new ArrayList<>();
         for (DependentExecute dependentExecute : dependentTaskList) {
-            DependResult dependResult = dependentExecute.getModelDependResult(dependentDate);
+            DependResult dependResult = dependentExecute.getModelDependResult(dependentDate, testFlag);
             dependResultList.add(dependResult);
         }
         result = DependentUtils.getDependResultForRelation(this.dependentParameters.getRelation(), dependResultList);
-        logger.info("Dependent task completed, dependent result: {}", result);
+        log.info("Dependent task completed, dependent result: {}", result);
         return result;
     }
 
@@ -271,7 +290,7 @@ public class DependentTaskProcessor extends BaseTaskProcessor {
         status = (result == DependResult.SUCCESS) ? TaskExecutionStatus.SUCCESS : TaskExecutionStatus.FAILURE;
         taskInstance.setState(status);
         taskInstance.setEndTime(new Date());
-        processService.saveTaskInstance(taskInstance);
+        taskInstanceDao.upsertTaskInstance(taskInstance);
     }
 
     @Override

@@ -17,11 +17,13 @@
 
 package org.apache.dolphinscheduler.service.alert;
 
+import org.apache.dolphinscheduler.common.constants.Constants;
 import org.apache.dolphinscheduler.common.enums.AlertType;
 import org.apache.dolphinscheduler.common.enums.CommandType;
 import org.apache.dolphinscheduler.common.enums.Flag;
 import org.apache.dolphinscheduler.common.enums.WarningType;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
+import org.apache.dolphinscheduler.common.utils.PropertyUtils;
 import org.apache.dolphinscheduler.dao.AlertDao;
 import org.apache.dolphinscheduler.dao.entity.Alert;
 import org.apache.dolphinscheduler.dao.entity.DqExecuteResult;
@@ -39,8 +41,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -48,12 +50,8 @@ import org.springframework.stereotype.Component;
  * process alert manager
  */
 @Component
+@Slf4j
 public class ProcessAlertManager {
-
-    /**
-     * logger of AlertManager
-     */
-    private static final Logger logger = LoggerFactory.getLogger(ProcessAlertManager.class);
 
     /**
      * alert dao
@@ -200,10 +198,9 @@ public class ProcessAlertManager {
                     processInstance.getWarningGroupId() == null ? 1 : processInstance.getWarningGroupId());
             alert.setAlertType(AlertType.FAULT_TOLERANCE_WARNING);
             alertDao.addAlert(alert);
-            logger.info("add alert to db , alert : {}", alert);
 
         } catch (Exception e) {
-            logger.error("send alert failed:{} ", e.getMessage());
+            log.error("send alert failed:{} ", e.getMessage());
         }
 
     }
@@ -217,13 +214,10 @@ public class ProcessAlertManager {
     public void sendAlertProcessInstance(ProcessInstance processInstance,
                                          List<TaskInstance> taskInstances,
                                          ProjectUser projectUser) {
-
         if (!isNeedToSendWarning(processInstance)) {
             return;
         }
-
         Alert alert = new Alert();
-
         String cmdName = getCommandCnName(processInstance.getCommandType());
         String success = processInstance.getState().isSuccess() ? "success" : "failed";
         alert.setTitle(cmdName + " " + success);
@@ -238,7 +232,6 @@ public class ProcessAlertManager {
         alert.setAlertType(processInstance.getState().isSuccess() ? AlertType.PROCESS_INSTANCE_SUCCESS
                 : AlertType.PROCESS_INSTANCE_FAILURE);
         alertDao.addAlert(alert);
-        logger.info("add alert to db , alert: {}", alert);
     }
 
     /**
@@ -280,6 +273,9 @@ public class ProcessAlertManager {
      * @param processInstance success process instance
      */
     public void closeAlert(ProcessInstance processInstance) {
+        if (!PropertyUtils.getBoolean(Constants.AUTO_CLOSE_ALERT, false)) {
+            return;
+        }
         List<Alert> alerts = alertDao.listAlerts(processInstance.getId());
         if (CollectionUtils.isEmpty(alerts)) {
             // no need to close alert
@@ -325,7 +321,6 @@ public class ProcessAlertManager {
         alert.setAlertType(processInstance.getState().isSuccess() ? AlertType.PROCESS_INSTANCE_SUCCESS
                 : AlertType.PROCESS_INSTANCE_FAILURE);
         alertDao.addAlert(alert);
-        logger.info("add alert to db , alert: {}", alert);
     }
 
     /**
@@ -342,7 +337,6 @@ public class ProcessAlertManager {
         alert.setProcessInstanceId(processInstance.getId());
         alert.setAlertType(AlertType.TASK_FAILURE);
         alertDao.addAlert(alert);
-        logger.info("add alert to db , alert: {}", alert);
     }
 
     /**
@@ -440,6 +434,5 @@ public class ProcessAlertManager {
         alert.setProcessInstanceId(processInstance.getId());
         alert.setAlertType(AlertType.PROCESS_INSTANCE_BLOCKED);
         alertDao.addAlert(alert);
-        logger.info("add alert to db, alert: {}", alert);
     }
 }

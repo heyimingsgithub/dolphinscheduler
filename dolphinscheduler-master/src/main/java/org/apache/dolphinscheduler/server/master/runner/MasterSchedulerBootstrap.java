@@ -17,17 +17,18 @@
 
 package org.apache.dolphinscheduler.server.master.runner;
 
-import org.apache.dolphinscheduler.common.Constants;
+import org.apache.dolphinscheduler.common.constants.Constants;
 import org.apache.dolphinscheduler.common.enums.SlotCheckState;
 import org.apache.dolphinscheduler.common.lifecycle.ServerLifeCycleManager;
 import org.apache.dolphinscheduler.common.thread.BaseDaemonThread;
 import org.apache.dolphinscheduler.common.thread.ThreadUtils;
-import org.apache.dolphinscheduler.common.utils.LoggerUtils;
 import org.apache.dolphinscheduler.common.utils.NetUtils;
 import org.apache.dolphinscheduler.common.utils.OSUtils;
 import org.apache.dolphinscheduler.dao.entity.Command;
 import org.apache.dolphinscheduler.dao.entity.ProcessInstance;
 import org.apache.dolphinscheduler.dao.repository.ProcessInstanceDao;
+import org.apache.dolphinscheduler.dao.repository.TaskDefinitionLogDao;
+import org.apache.dolphinscheduler.dao.repository.TaskInstanceDao;
 import org.apache.dolphinscheduler.server.master.cache.ProcessInstanceExecCacheManager;
 import org.apache.dolphinscheduler.server.master.config.MasterConfig;
 import org.apache.dolphinscheduler.server.master.dispatch.executor.NettyExecutorManager;
@@ -39,8 +40,10 @@ import org.apache.dolphinscheduler.server.master.metrics.MasterServerMetrics;
 import org.apache.dolphinscheduler.server.master.metrics.ProcessInstanceMetrics;
 import org.apache.dolphinscheduler.server.master.registry.ServerNodeManager;
 import org.apache.dolphinscheduler.service.alert.ProcessAlertManager;
+import org.apache.dolphinscheduler.service.command.CommandService;
 import org.apache.dolphinscheduler.service.expand.CuringParamsService;
 import org.apache.dolphinscheduler.service.process.ProcessService;
+import org.apache.dolphinscheduler.service.utils.LoggerUtils;
 
 import org.apache.commons.collections4.CollectionUtils;
 
@@ -50,8 +53,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -59,15 +62,23 @@ import org.springframework.stereotype.Service;
  * Master scheduler thread, this thread will consume the commands from database and trigger processInstance executed.
  */
 @Service
+@Slf4j
 public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCloseable {
-
-    private static final Logger logger = LoggerFactory.getLogger(MasterSchedulerBootstrap.class);
 
     @Autowired
     private ProcessService processService;
 
     @Autowired
+    private CommandService commandService;
+
+    @Autowired
     private ProcessInstanceDao processInstanceDao;
+
+    @Autowired
+    private TaskInstanceDao taskInstanceDao;
+
+    @Autowired
+    private TaskDefinitionLogDao taskDefinitionLogDao;
 
     @Autowired
     private MasterConfig masterConfig;
@@ -98,6 +109,9 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
     @Autowired
     private WorkflowEventLooper workflowEventLooper;
 
+    @Autowired
+    private ServerNodeManager serverNodeManager;
+
     private String masterAddress;
 
     protected MasterSchedulerBootstrap() {
@@ -109,22 +123,22 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
      */
     public void init() {
         this.masterPrepareExecService = (ThreadPoolExecutor) ThreadUtils
-            .newDaemonFixedThreadExecutor("MasterPreExecThread", masterConfig.getPreExecThreads());
+                .newDaemonFixedThreadExecutor("MasterPreExecThread", masterConfig.getPreExecThreads());
         this.masterAddress = NetUtils.getAddr(masterConfig.getListenPort());
     }
 
     @Override
     public synchronized void start() {
-        logger.info("Master schedule bootstrap starting..");
+        log.info("Master schedule bootstrap starting..");
         super.start();
         workflowEventLooper.start();
-        logger.info("Master schedule bootstrap started...");
+        log.info("Master schedule bootstrap started...");
     }
 
     @Override
     public void close() {
-        logger.info("Master schedule bootstrap stopping...");
-        logger.info("Master schedule bootstrap stopped...");
+        log.info("Master schedule bootstrap stopping...");
+        log.info("Master schedule bootstrap stopped...");
     }
 
     /**
@@ -136,12 +150,15 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
             try {
                 if (!ServerLifeCycleManager.isRunning()) {
                     // the current server is not at running status, cannot consume command.
+                    log.warn("The current server {} is not at running status, cannot consumes commands.",
+                            this.masterAddress);
                     Thread.sleep(Constants.SLEEP_TIME_MILLIS);
                 }
                 // todo: if the workflow event queue is much, we need to handle the back pressure
                 boolean isOverload =
-                    OSUtils.isOverload(masterConfig.getMaxCpuLoadAvg(), masterConfig.getReservedMemory());
+                        OSUtils.isOverload(masterConfig.getMaxCpuLoadAvg(), masterConfig.getReservedMemory());
                 if (isOverload) {
+                    log.warn("The current server {} is overload, cannot consumes commands.", this.masterAddress);
                     MasterServerMetrics.incMasterOverload();
                     Thread.sleep(Constants.SLEEP_TIME_MILLIS);
                     continue;
@@ -165,30 +182,33 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
                     try {
                         LoggerUtils.setWorkflowInstanceIdMDC(processInstance.getId());
                         if (processInstanceExecCacheManager.contains(processInstance.getId())) {
-                            logger.error(
-                                "The workflow instance is already been cached, this case shouldn't be happened");
+                            log.error(
+                                    "The workflow instance is already been cached, this case shouldn't be happened");
                         }
                         WorkflowExecuteRunnable workflowRunnable = new WorkflowExecuteRunnable(processInstance,
-                            processService,
-                            processInstanceDao,
-                            nettyExecutorManager,
-                            processAlertManager,
-                            masterConfig,
-                            stateWheelExecuteThread,
-                            curingGlobalParamsService);
+                                commandService,
+                                processService,
+                                processInstanceDao,
+                                nettyExecutorManager,
+                                processAlertManager,
+                                masterConfig,
+                                stateWheelExecuteThread,
+                                curingGlobalParamsService,
+                                taskInstanceDao,
+                                taskDefinitionLogDao);
                         processInstanceExecCacheManager.cache(processInstance.getId(), workflowRunnable);
                         workflowEventQueue.addEvent(new WorkflowEvent(WorkflowEventType.START_WORKFLOW,
-                            processInstance.getId()));
+                                processInstance.getId()));
                     } finally {
                         LoggerUtils.removeWorkflowInstanceIdMDC();
                     }
                 });
             } catch (InterruptedException interruptedException) {
-                logger.warn("Master schedule bootstrap interrupted, close the loop", interruptedException);
+                log.warn("Master schedule bootstrap interrupted, close the loop", interruptedException);
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                logger.error("Master schedule workflow error", e);
+                log.error("Master schedule workflow error", e);
                 // sleep for 1s here to avoid the database down cause the exception boom
                 ThreadUtils.sleep(Constants.SLEEP_TIME_MILLIS);
             }
@@ -197,7 +217,7 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
 
     private List<ProcessInstance> command2ProcessInstance(List<Command> commands) throws InterruptedException {
         long commandTransformStartTime = System.currentTimeMillis();
-        logger.info("Master schedule bootstrap transforming command to ProcessInstance, commandSize: {}",
+        log.info("Master schedule bootstrap transforming command to ProcessInstance, commandSize: {}",
                 commands.size());
         List<ProcessInstance> processInstances = Collections.synchronizedList(new ArrayList<>(commands.size()));
         CountDownLatch latch = new CountDownLatch(commands.size());
@@ -210,19 +230,19 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
                     // by only one master
                     SlotCheckState slotCheckState = slotCheck(command);
                     if (slotCheckState.equals(SlotCheckState.CHANGE) || slotCheckState.equals(SlotCheckState.INJECT)) {
-                        logger.info("Master handle command {} skip, slot check state: {}", command.getId(),
+                        log.info("Master handle command {} skip, slot check state: {}", command.getId(),
                                 slotCheckState);
                         return;
                     }
                     ProcessInstance processInstance = processService.handleCommand(masterAddress, command);
                     if (processInstance != null) {
                         processInstances.add(processInstance);
-                        logger.info("Master handle command {} end, create process instance {}", command.getId(),
+                        log.info("Master handle command {} end, create process instance {}", command.getId(),
                                 processInstance.getId());
                     }
                 } catch (Exception e) {
-                    logger.error("Master handle command {} error ", command.getId(), e);
-                    processService.moveToErrorCommand(command, e.toString());
+                    log.error("Master handle command {} error ", command.getId(), e);
+                    commandService.moveToErrorCommand(command, e.toString());
                 } finally {
                     latch.countDown();
                 }
@@ -231,33 +251,33 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
 
         // make sure to finish handling command each time before next scan
         latch.await();
-        logger.info(
-            "Master schedule bootstrap transformed command to ProcessInstance, commandSize: {}, processInstanceSize: {}",
-            commands.size(), processInstances.size());
+        log.info(
+                "Master schedule bootstrap transformed command to ProcessInstance, commandSize: {}, processInstanceSize: {}",
+                commands.size(), processInstances.size());
         ProcessInstanceMetrics
-            .recordProcessInstanceGenerateTime(System.currentTimeMillis() - commandTransformStartTime);
+                .recordProcessInstanceGenerateTime(System.currentTimeMillis() - commandTransformStartTime);
         return processInstances;
     }
 
     private List<Command> findCommands() throws MasterException {
         try {
             long scheduleStartTime = System.currentTimeMillis();
-            int thisMasterSlot = ServerNodeManager.getSlot();
-            int masterCount = ServerNodeManager.getMasterSize();
+            int thisMasterSlot = serverNodeManager.getSlot();
+            int masterCount = serverNodeManager.getMasterSize();
             if (masterCount <= 0) {
-                logger.warn("Master count: {} is invalid, the current slot: {}", masterCount, thisMasterSlot);
+                log.warn("Master count: {} is invalid, the current slot: {}", masterCount, thisMasterSlot);
                 return Collections.emptyList();
             }
-            int pageNumber = 0;
             int pageSize = masterConfig.getFetchCommandNum();
             final List<Command> result =
-                processService.findCommandPageBySlot(pageSize, pageNumber, masterCount, thisMasterSlot);
+                    commandService.findCommandPageBySlot(pageSize, masterCount, thisMasterSlot);
             if (CollectionUtils.isNotEmpty(result)) {
-                logger.info(
-                    "Master schedule bootstrap loop command success, command size: {}, current slot: {}, total slot size: {}",
-                    result.size(), thisMasterSlot, masterCount);
+                long cost = System.currentTimeMillis() - scheduleStartTime;
+                log.info(
+                        "Master schedule bootstrap loop command success, fetch command size: {}, cost: {}ms, current slot: {}, total slot size: {}",
+                        result.size(), cost, thisMasterSlot, masterCount);
+                ProcessInstanceMetrics.recordCommandQueryTime(cost);
             }
-            ProcessInstanceMetrics.recordCommandQueryTime(System.currentTimeMillis() - scheduleStartTime);
             return result;
         } catch (Exception ex) {
             throw new MasterException("Master loop command from database error", ex);
@@ -265,8 +285,8 @@ public class MasterSchedulerBootstrap extends BaseDaemonThread implements AutoCl
     }
 
     private SlotCheckState slotCheck(Command command) {
-        int slot = ServerNodeManager.getSlot();
-        int masterSize = ServerNodeManager.getMasterSize();
+        int slot = serverNodeManager.getSlot();
+        int masterSize = serverNodeManager.getMasterSize();
         SlotCheckState state;
         if (masterSize <= 0) {
             state = SlotCheckState.CHANGE;

@@ -17,6 +17,7 @@
 
 package org.apache.dolphinscheduler.api.service;
 
+import org.apache.dolphinscheduler.api.dto.workflowInstance.WorkflowExecuteResponse;
 import org.apache.dolphinscheduler.api.enums.ExecuteType;
 import org.apache.dolphinscheduler.common.enums.CommandType;
 import org.apache.dolphinscheduler.common.enums.ComplementDependentMode;
@@ -61,12 +62,14 @@ public interface ExecutorService {
     Map<String, Object> execProcessInstance(User loginUser, long projectCode,
                                             long processDefinitionCode, String cronTime, CommandType commandType,
                                             FailureStrategy failureStrategy, String startNodeList,
-                                            TaskDependType taskDependType, WarningType warningType, int warningGroupId,
+                                            TaskDependType taskDependType, WarningType warningType,
+                                            Integer warningGroupId,
                                             RunMode runMode,
-                                            Priority processInstancePriority, String workerGroup, Long environmentCode, Integer timeout,
+                                            Priority processInstancePriority, String workerGroup, Long environmentCode,
+                                            Integer timeout,
                                             Map<String, String> startParams, Integer expectedParallelismNumber,
-                                            int dryRun,
-                                            ComplementDependentMode complementDependentMode);
+                                            int dryRun, int testFlag,
+                                            ComplementDependentMode complementDependentMode, Integer version);
 
     /**
      * check whether the process definition can be executed
@@ -74,10 +77,10 @@ public interface ExecutorService {
      * @param projectCode project code
      * @param processDefinition process definition
      * @param processDefineCode process definition code
-     * @param verison process definition version
-     * @return check result code
+     * @param version process definition version
      */
-    Map<String, Object> checkProcessDefinitionValid(long projectCode, ProcessDefinition processDefinition, long processDefineCode, Integer verison);
+    void checkProcessDefinitionValid(long projectCode, ProcessDefinition processDefinition, long processDefineCode,
+                                     Integer version);
 
     /**
      * do action to process instance：pause, stop, repeat, recover from pause, recover from stop
@@ -89,6 +92,30 @@ public interface ExecutorService {
      * @return execute result code
      */
     Map<String, Object> execute(User loginUser, long projectCode, Integer processInstanceId, ExecuteType executeType);
+
+    /**
+     * do action to execute task in process instance
+     *
+     * @param loginUser login user
+     * @param projectCode project code
+     * @param processInstanceId process instance id
+     * @param startNodeList start node list
+     * @param taskDependType task depend type
+     * @return execute result code
+     */
+    WorkflowExecuteResponse executeTask(User loginUser, long projectCode, Integer processInstanceId,
+                                        String startNodeList,
+                                        TaskDependType taskDependType);
+
+    /**
+     * do action to process instance：pause, stop, repeat, recover from pause, recover from stop
+     *
+     * @param loginUser login user
+     * @param workflowInstanceId workflow instance id
+     * @param executeType execute type
+     * @return execute result code
+     */
+    Map<String, Object> execute(User loginUser, Integer workflowInstanceId, ExecuteType executeType);
 
     /**
      * check if sub processes are offline before starting process definition
@@ -132,9 +159,9 @@ public interface ExecutorService {
      * @return execute process instance code
      */
     Map<String, Object> execStreamTaskInstance(User loginUser, long projectCode,
-                                            long taskDefinitionCode, int taskDefinitionVersion,
-                                            int warningGroupId,
-                                            String workerGroup, Long environmentCode,
-                                            Map<String, String> startParams,
-                                            int dryRun);
+                                               long taskDefinitionCode, int taskDefinitionVersion,
+                                               int warningGroupId,
+                                               String workerGroup, Long environmentCode,
+                                               Map<String, String> startParams,
+                                               int dryRun);
 }

@@ -19,7 +19,7 @@ package org.apache.dolphinscheduler.server.master.runner.task;
 
 import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_BLOCKING;
 
-import org.apache.dolphinscheduler.common.Constants;
+import org.apache.dolphinscheduler.common.constants.Constants;
 import org.apache.dolphinscheduler.common.enums.BlockingOpportunity;
 import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
@@ -32,7 +32,7 @@ import org.apache.dolphinscheduler.plugin.task.api.model.DependentTaskModel;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.BlockingParameters;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.DependentParameters;
 import org.apache.dolphinscheduler.plugin.task.api.utils.DependentUtils;
-import org.apache.dolphinscheduler.server.utils.LogUtils;
+import org.apache.dolphinscheduler.service.utils.LogUtils;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -77,7 +77,7 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
         this.taskInstance.setHost(NetUtils.getAddr(masterConfig.getListenPort()));
         this.taskInstance.setState(TaskExecutionStatus.RUNNING_EXECUTION);
         this.taskInstance.setStartTime(new Date());
-        this.processService.saveTaskInstance(taskInstance);
+        this.taskInstanceDao.upsertTaskInstance(taskInstance);
         this.dependentParameters = taskInstance.getDependency();
         this.blockingParam = JSONUtils.parseObject(taskInstance.getTaskParams(), BlockingParameters.class);
     }
@@ -87,8 +87,8 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
         // todo: task cannot be pause
         taskInstance.setState(TaskExecutionStatus.PAUSE);
         taskInstance.setEndTime(new Date());
-        processService.saveTaskInstance(taskInstance);
-        logger.info("blocking task has been paused");
+        taskInstanceDao.upsertTaskInstance(taskInstance);
+        log.info("blocking task has been paused");
         return true;
     }
 
@@ -96,8 +96,8 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
     protected boolean killTask() {
         taskInstance.setState(TaskExecutionStatus.KILL);
         taskInstance.setEndTime(new Date());
-        processService.saveTaskInstance(taskInstance);
-        logger.info("blocking task has been killed");
+        taskInstanceDao.upsertTaskInstance(taskInstance);
+        log.info("blocking task has been killed");
         return true;
     }
 
@@ -114,13 +114,13 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
             return false;
         }
         this.setTaskExecutionLogger();
-        logger.info("blocking task submit success");
+        log.info("blocking task submit success");
         return true;
     }
 
     @Override
     protected boolean runTask() {
-        logger.info("blocking task starting");
+        log.info("blocking task starting");
         initTaskParameters();
         if (conditionResult.equals(DependResult.WAITING)) {
             setConditionResult();
@@ -128,7 +128,7 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
         } else {
             endTask();
         }
-        logger.info("blocking task finished");
+        log.info("blocking task finished");
         return true;
     }
 
@@ -154,25 +154,25 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
 
         DependResult dependResult = DependResult.SUCCESS;
         if (!completeTaskList.containsKey(item.getDepTaskCode())) {
-            logger.info("depend item: {} have not completed yet.", item.getDepTaskCode());
+            log.info("depend item: {} have not completed yet.", item.getDepTaskCode());
             dependResult = DependResult.FAILED;
             return dependResult;
         }
         TaskExecutionStatus executionStatus = completeTaskList.get(item.getDepTaskCode());
         if (executionStatus != item.getStatus()) {
-            logger.info("depend item : {} expect status: {}, actual status: {}", item.getDepTaskCode(),
+            log.info("depend item : {} expect status: {}, actual status: {}", item.getDepTaskCode(),
                     item.getStatus(), executionStatus);
             dependResult = DependResult.FAILED;
         }
-        logger.info("dependent item complete {} {},{}",
+        log.info("dependent item complete {} {},{}",
                 Constants.DEPENDENT_SPLIT, item.getDepTaskCode(), dependResult);
         return dependResult;
     }
 
     private void setConditionResult() {
 
-        List<TaskInstance> taskInstances = processService
-                .findValidTaskListByProcessId(taskInstance.getProcessInstanceId());
+        List<TaskInstance> taskInstances = taskInstanceDao
+                .findValidTaskListByProcessId(taskInstance.getProcessInstanceId(), processInstance.getTestFlag());
         for (TaskInstance task : taskInstances) {
             completeTaskList.putIfAbsent(task.getTaskCode(), task.getState());
         }
@@ -188,7 +188,7 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
             tempResultList.add(tempResult);
         }
         conditionResult = DependentUtils.getDependResultForRelation(dependentParameters.getRelation(), tempResultList);
-        logger.info("the blocking task depend result : {}", conditionResult);
+        log.info("the blocking task depend result : {}", conditionResult);
     }
 
     private void endTask() {
@@ -197,14 +197,14 @@ public class BlockingTaskProcessor extends BaseTaskProcessor {
                         ? DependResult.SUCCESS
                         : DependResult.FAILED;
         boolean isBlocked = (expected == this.conditionResult);
-        logger.info("blocking opportunity: expected-->{}, actual-->{}", expected, this.conditionResult);
+        log.info("blocking opportunity: expected-->{}, actual-->{}", expected, this.conditionResult);
         processInstance.setBlocked(isBlocked);
         if (isBlocked) {
             processInstance.setStateWithDesc(WorkflowExecutionStatus.READY_BLOCK, "ready block");
         }
         taskInstance.setState(TaskExecutionStatus.SUCCESS);
         taskInstance.setEndTime(new Date());
-        processService.updateTaskInstance(taskInstance);
-        logger.info("blocking task execute complete, blocking:{}", isBlocked);
+        taskInstanceDao.updateTaskInstance(taskInstance);
+        log.info("blocking task execute complete, blocking:{}", isBlocked);
     }
 }

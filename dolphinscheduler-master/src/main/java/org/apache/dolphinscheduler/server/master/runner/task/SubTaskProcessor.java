@@ -17,9 +17,9 @@
 
 package org.apache.dolphinscheduler.server.master.runner.task;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.google.auto.service.AutoService;
-import org.apache.commons.lang3.StringUtils;
+import static org.apache.dolphinscheduler.common.constants.Constants.LOCAL_PARAMS;
+import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_SUB_PROCESS;
+
 import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
 import org.apache.dolphinscheduler.common.utils.NetUtils;
@@ -31,8 +31,10 @@ import org.apache.dolphinscheduler.plugin.task.api.model.Property;
 import org.apache.dolphinscheduler.remote.command.WorkflowStateEventChangeCommand;
 import org.apache.dolphinscheduler.remote.processor.StateEventCallbackService;
 import org.apache.dolphinscheduler.remote.utils.Host;
-import org.apache.dolphinscheduler.server.utils.LogUtils;
 import org.apache.dolphinscheduler.service.bean.SpringApplicationContext;
+import org.apache.dolphinscheduler.service.utils.LogUtils;
+
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Date;
 import java.util.List;
@@ -41,8 +43,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-import static org.apache.dolphinscheduler.common.Constants.LOCAL_PARAMS;
-import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.TASK_TYPE_SUB_PROCESS;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.auto.service.AutoService;
 
 /**
  * subtask processor
@@ -86,7 +88,7 @@ public class SubTaskProcessor extends BaseTaskProcessor {
                 updateTaskState();
             }
         } catch (Exception e) {
-            logger.error("work flow {} sub task {} exceptions",
+            log.error("work flow {} sub task {} exceptions",
                     this.processInstance.getId(),
                     this.taskInstance.getId(),
                     e);
@@ -113,7 +115,7 @@ public class SubTaskProcessor extends BaseTaskProcessor {
                 && TaskTimeoutStrategy.WARNFAILED != taskTimeoutStrategy) {
             return true;
         }
-        logger.info("sub process task {} timeout, strategy {} ",
+        log.info("sub process task {} timeout, strategy {} ",
                 taskInstance.getId(), taskTimeoutStrategy.getDescp());
         killTask();
         return true;
@@ -121,7 +123,7 @@ public class SubTaskProcessor extends BaseTaskProcessor {
 
     private void updateTaskState() {
         subProcessInstance = processService.findSubProcessInstance(processInstance.getId(), taskInstance.getId());
-        logger.info("work flow {} task {}, sub work flow: {} state: {}",
+        log.info("work flow {} task {}, sub work flow: {} state: {}",
                 this.processInstance.getId(),
                 this.taskInstance.getId(),
                 subProcessInstance.getId(),
@@ -131,7 +133,7 @@ public class SubTaskProcessor extends BaseTaskProcessor {
             taskInstance.setState(TaskExecutionStatus.of(subProcessInstance.getState().getCode()));
             taskInstance.setEndTime(new Date());
             dealFinish();
-            processService.saveTaskInstance(taskInstance);
+            taskInstanceDao.upsertTaskInstance(taskInstance);
         }
     }
 
@@ -186,7 +188,7 @@ public class SubTaskProcessor extends BaseTaskProcessor {
     }
 
     private boolean setSubWorkFlow() {
-        logger.info("set work flow {} task {} running",
+        log.info("set work flow {} task {} running",
                 this.processInstance.getId(),
                 this.taskInstance.getId());
         if (this.subProcessInstance != null) {
@@ -199,8 +201,8 @@ public class SubTaskProcessor extends BaseTaskProcessor {
         taskInstance.setHost(NetUtils.getAddr(masterConfig.getListenPort()));
         taskInstance.setState(TaskExecutionStatus.RUNNING_EXECUTION);
         taskInstance.setStartTime(new Date());
-        processService.updateTaskInstance(taskInstance);
-        logger.info("set sub work flow {} task {} state: {}",
+        taskInstanceDao.updateTaskInstance(taskInstance);
+        log.info("set sub work flow {} task {} state: {}",
                 processInstance.getId(),
                 taskInstance.getId(),
                 taskInstance.getState());

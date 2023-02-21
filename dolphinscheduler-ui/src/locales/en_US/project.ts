@@ -36,11 +36,19 @@ export default {
     delete: 'Delete',
     confirm: 'Confirm',
     cancel: 'Cancel',
-    delete_confirm: 'Delete?'
+    delete_confirm: 'Delete?',
+    authorize_level: 'Authorize Level',
+    no_permission: 'No Permission',
+    read_permission: 'Read Permission',
+    all_permission: 'All Permission'
   },
   workflow: {
+    on_line: 'Online',
+    test: 'Test',
+    operating_environment: 'Operating Environment',
     workflow_relation: 'Workflow Relation',
     create_workflow: 'Create Workflow',
+    create_workflow_dynamic: 'Create Workflow (Dynamic)',
     import_workflow: 'Import Workflow',
     workflow_name: 'Workflow Name',
     workflow_instance_name: 'Workflow Instance Name',
@@ -95,6 +103,9 @@ export default {
     backward_execution: 'Backward execution',
     forward_execution: 'Forward execution',
     current_node_execution: 'Execute only the current node',
+    backward_execution_task: 'Run backwards',
+    forward_execution_task: 'Run forwards',
+    current_node_execution_task: 'Run',
     notification_strategy: 'Notification Strategy',
     workflow_priority: 'Workflow Priority',
     worker_group: 'Worker Group',
@@ -103,6 +114,7 @@ export default {
     complement_data: 'Complement Data',
     startup_parameter: 'Startup Parameter',
     whether_dry_run: 'Whether Dry-Run',
+    whether_test: 'Whether Test',
     continue: 'Continue',
     end: 'End',
     none_send: 'None',
@@ -150,6 +162,7 @@ export default {
     pause: 'Pause',
     recovery_waiting_thread: 'Recovery waiting thread',
     recover_serial_wait: 'Recover serial wait',
+    execute_task: 'Execute the specified task',
     recovery_suspend: 'Recovery Suspend',
     recovery_failed: 'Recovery Failed',
     gantt: 'Gantt',
@@ -200,9 +213,14 @@ export default {
     workflow_relation_no_data_result_title:
       'Can not find any relations of workflows.',
     workflow_relation_no_data_result_desc:
-      'There is not any workflows. Please create a workflow, and then visit this page again.'
+      'There is not any workflows. Please create a workflow, and then visit this page again.',
+    ready_to_block: 'Ready to block',
+    block: 'Block'
   },
   task: {
+    on_line: 'Online',
+    test: 'Test',
+    operating_environment: 'Operating Environment',
     cancel_full_screen: 'Cancel full screen',
     enter_full_screen: 'Enter full screen',
     current_task_settings: 'Current task settings',
@@ -217,6 +235,7 @@ export default {
     workflow_state: 'Workflow State',
     version: 'Version',
     current_version: 'Current Version',
+    run_type: 'Run Type',
     switch_version: 'Switch To This Version',
     confirm_switch_version: 'Confirm Switch To This Version?',
     description: 'Description',
@@ -261,7 +280,8 @@ export default {
     alarm_group: 'Alarm group',
     startup_parameter: 'Startup Parameter',
     whether_dry_run: 'Whether Dry-Run',
-    please_choose: 'Please Choose'
+    please_choose: 'Please Choose',
+    remove_task_cache: 'Clear cache'
   },
   dag: {
     create: 'Create Workflow',
@@ -309,6 +329,11 @@ export default {
     online: 'Online'
   },
   node: {
+    is_cache: 'Cache Execution',
+    jvm_args: 'Java VM Parameters',
+    jvm_args_tips: 'Please enter virtual machine parameters',
+    run_type: 'Run Type',
+    is_module_path: 'Use Module Path',
     return_back: 'Return',
     current_node_settings: 'Current node settings',
     instructions: 'Instructions',
@@ -351,6 +376,9 @@ export default {
     mb: 'MB',
     image: 'Image',
     image_tips: 'Please enter image',
+    command: 'Command',
+    command_tips:
+      'Please enter the container execution command, for example: /bin/echo hello world',
     min_memory_tips: 'Please enter min memory',
     state: 'State',
     branch_flow: 'Branch flow',
@@ -389,7 +417,6 @@ export default {
     value_required_tips: 'value(required)',
     pre_tasks: 'Pre tasks',
     program_type: 'Program Type',
-    spark_version: 'Spark Version',
     main_class: 'Main Class',
     main_class_tips: 'Please enter main class',
     main_package: 'Main Package',
@@ -638,8 +665,6 @@ export default {
     emr_flow_define_json_tips: 'Please enter the definition of the job flow.',
     emr_steps_define_json: 'stepsDefineJson',
     emr_steps_define_json_tips: 'Please enter the definition of the emr step.',
-    segment_separator: 'Segment Execution Separator',
-    segment_separator_tips: 'Please enter the segment execution separator',
     zeppelin_note_id: 'zeppelinNoteId',
     zeppelin_note_id_tips: 'Please enter the note id of your zeppelin note',
     zeppelin_paragraph_id: 'zeppelinParagraphId',
@@ -710,7 +735,7 @@ export default {
     mlflow_deployModelKey: 'Model-URI',
     mlflow_deployPort: 'Port',
     mlflowProjectRepository: 'Repository',
-    mlflowProjectRepository_tips: 'github respository or path on worker',
+    mlflowProjectRepository_tips: 'git repository or path on worker',
     mlflowProjectVersion: 'Project Version',
     mlflowProjectVersion_tips: 'git version',
     mlflow_cpuLimit: 'Max Cpu Limit',
@@ -774,6 +799,22 @@ export default {
     pytorch_requirements: 'Requirement File',
     pytorch_conda_python_version: 'Python Version',
     pytorch_conda_python_version_tips:
-      'Please enter the version number, such as 3.6, 3.7, 3.x'
+      'Please enter the version number, such as 3.6, 3.7, 3.x',
+    factory_name: 'Factory Name',
+    resource_group_name: 'Resource Group Name',
+    pipeline_name: 'Pipeline Name',
+    factory_tips: 'Please select factory',
+    resource_group_tips: 'Please select resource group',
+    pipeline_tips: 'Please select pipeline'
+  },
+  menu: {
+    fav: 'Favorites',
+    universal: 'Universal',
+    cloud: 'Cloud',
+    logic: 'Logic',
+    di: 'Data Integration',
+    dq: 'Data Quality',
+    ml: 'Machine Learning',
+    other: 'Other'
   }
 }
