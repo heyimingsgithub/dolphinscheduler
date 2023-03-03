@@ -23,6 +23,7 @@ import static org.apache.dolphinscheduler.plugin.task.api.utils.ProcessUtils.get
 
 import org.apache.dolphinscheduler.common.log.remote.RemoteLogUtils;
 import org.apache.dolphinscheduler.common.utils.PropertyUtils;
+import org.apache.dolphinscheduler.plugin.task.api.enums.TaskExecutionStatus;
 import org.apache.dolphinscheduler.plugin.task.api.model.TaskResponse;
 import org.apache.dolphinscheduler.plugin.task.api.utils.AbstractCommandExecutorConstants;
 import org.apache.dolphinscheduler.plugin.task.api.utils.OSUtils;
@@ -38,8 +39,11 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -93,6 +97,8 @@ public abstract class AbstractCommandExecutor {
      * taskRequest
      */
     protected TaskExecutionContext taskRequest;
+
+    protected Future<?> taskOutputFuture;
 
     public AbstractCommandExecutor(Consumer<LinkedBlockingQueue<String>> logHandler,
                                    TaskExecutionContext taskRequest,
@@ -153,7 +159,7 @@ public abstract class AbstractCommandExecutor {
 
     /**
      * generate systemd command.
-     * eg: sudo systemd-run -q --scope -p CPUQuota=100% -p MemoryMax=200M --uid=root
+     * eg: sudo systemd-run -q --scope -p CPUQuota=100% -p MemoryLimit=200M --uid=root
      * @param command command
      */
     private void generateCgroupCommand(List<String> command) {
@@ -173,18 +179,19 @@ public abstract class AbstractCommandExecutor {
             command.add(String.format("CPUQuota=%s%%", taskRequest.getCpuQuota()));
         }
 
+        // use `man systemd.resource-control` to find available parameter
         if (memoryMax == -1) {
             command.add("-p");
-            command.add(String.format("MemoryMax=%s", "infinity"));
+            command.add(String.format("MemoryLimit=%s", "infinity"));
         } else {
             command.add("-p");
-            command.add(String.format("MemoryMax=%sM", taskRequest.getMemoryMax()));
+            command.add(String.format("MemoryLimit=%sM", taskRequest.getMemoryMax()));
         }
 
         command.add(String.format("--uid=%s", taskRequest.getTenantCode()));
     }
 
-    public TaskResponse run(String execCommand) throws IOException, InterruptedException {
+    public TaskResponse run(String execCommand, TaskCallBack taskCallBack) throws IOException, InterruptedException {
         TaskResponse result = new TaskResponse();
         int taskInstanceId = taskRequest.getTaskInstanceId();
         if (null == TaskExecutionContextCacheManager.getByTaskInstanceId(taskInstanceId)) {
@@ -226,11 +233,28 @@ public abstract class AbstractCommandExecutor {
         // if timeout occurs, exit directly
         long remainTime = getRemainTime();
 
+        // update pid before waiting for the run to finish
+        if (null != taskCallBack) {
+            taskCallBack.updateTaskInstanceInfo(taskInstanceId);
+        }
+
         // waiting for the run to finish
         boolean status = process.waitFor(remainTime, TimeUnit.SECONDS);
 
+        if (taskOutputFuture != null) {
+            try {
+                // Wait the task log process finished.
+                taskOutputFuture.get();
+            } catch (ExecutionException e) {
+                logger.info("Handle task log error", e);
+            }
+        }
+
+        TaskExecutionStatus kubernetesStatus =
+                ProcessUtils.getApplicationStatus(taskRequest.getK8sTaskExecutionContext(), taskRequest.getTaskAppId());
+
         // if SHELL task exit
-        if (status) {
+        if (status && kubernetesStatus.isSuccess()) {
 
             // SHELL task state
             result.setExitStatusCode(process.exitValue());
@@ -334,7 +358,11 @@ public abstract class AbstractCommandExecutor {
 
         LinkedBlockingQueue<String> markerLog = new LinkedBlockingQueue<>(1);
         markerLog.add(ch.qos.logback.classic.ClassicConstants.FINALIZE_SESSION_MARKER.toString());
-
+        String logs = appendPodLogIfNeeded();
+        if (StringUtils.isNotEmpty(logs)) {
+            logBuffer.add("Dump logs from driver pod:");
+            logBuffer.add(logs);
+        }
         if (!logBuffer.isEmpty()) {
             // log handle
             logHandler.accept(logBuffer);
@@ -346,6 +374,13 @@ public abstract class AbstractCommandExecutor {
             RemoteLogUtils.sendRemoteLog(taskRequest.getLogPath());
             logger.info("Log handler sends task log {} to remote storage asynchronously.", taskRequest.getLogPath());
         }
+    }
+
+    private String appendPodLogIfNeeded() {
+        if (Objects.isNull(taskRequest.getK8sTaskExecutionContext())) {
+            return "";
+        }
+        return ProcessUtils.getPodLog(taskRequest.getK8sTaskExecutionContext(), taskRequest.getTaskAppId());
     }
 
     /**
@@ -378,7 +413,7 @@ public abstract class AbstractCommandExecutor {
         getOutputLogService.shutdown();
 
         ExecutorService parseProcessOutputExecutorService = newDaemonSingleThreadExecutor(threadLoggerInfoName);
-        parseProcessOutputExecutorService.submit(() -> {
+        taskOutputFuture = parseProcessOutputExecutorService.submit(() -> {
             try {
                 while (!logBuffer.isEmpty() || !logOutputIsSuccess) {
                     if (!logBuffer.isEmpty()) {

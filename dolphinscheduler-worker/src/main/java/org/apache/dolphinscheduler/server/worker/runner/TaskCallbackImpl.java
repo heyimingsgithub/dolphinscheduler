@@ -59,4 +59,17 @@ public class TaskCallbackImpl implements TaskCallBack {
         taskExecutionContext.setAppIds(applicationInfo.getAppIds());
         workerMessageSender.sendMessageWithRetry(taskExecutionContext, masterAddress, CommandType.TASK_EXECUTE_RUNNING);
     }
+
+    @Override
+    public void updateTaskInstanceInfo(int taskInstanceId) {
+        TaskExecutionContext taskExecutionContext =
+                TaskExecutionContextCacheManager.getByTaskInstanceId(taskInstanceId);
+        if (taskExecutionContext == null) {
+            log.error("task execution context is empty, taskInstanceId: {}", taskInstanceId);
+            return;
+        }
+
+        workerMessageSender.sendMessageWithRetry(taskExecutionContext, masterAddress, CommandType.TASK_UPDATE_PID);
+    }
+
 }
