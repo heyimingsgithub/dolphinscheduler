@@ -33,7 +33,7 @@ public class TaskConstants {
 
     public static final String FLINK_APPLICATION_REGEX = "JobID \\w+";
 
-    public static final String SETVALUE_REGEX = "[\\$#]\\{setValue\\(([^)]*)\\)}";
+    public static final String SETVALUE_REGEX = "[\\$#]\\{setValue\\((.*?)\\)}";
 
     /**
      * string false
@@ -145,31 +145,6 @@ public class TaskConstants {
     public static final String PSTREE = "pstree";
 
     public static final String RWXR_XR_X = "rwxr-xr-x";
-
-    /**
-     * task log info format
-     */
-    public static final String TASK_LOG_LOGGER_NAME = "TaskLogLogger";
-
-    /**
-     * task log logger name format
-     */
-    public static final String TASK_LOG_LOGGER_NAME_FORMAT = TASK_LOG_LOGGER_NAME + "-%s";
-
-    /**
-     * Task Logger's prefix
-     */
-    public static final String TASK_LOGGER_INFO_PREFIX = "TASK";
-
-    /**
-     * Task Logger Thread's name
-     */
-    public static final String TASK_APPID_LOG_FORMAT = "taskAppId";
-
-    /**
-     * get output log service
-     */
-    public static final String GET_OUTPUT_LOG_SERVICE = "-getOutputLogService";
 
     /**
      * date format of yyyyMMdd

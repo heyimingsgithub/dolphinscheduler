@@ -105,6 +105,8 @@
         <aws-java-sdk-redshift.version>1.12.300</aws-java-sdk-redshift.version>
         <azure-resourcemanager.version>2.21.0</azure-resourcemanager.version>
         <azure-resourcemanager-datafactory.version>1.0.0-beta.19</azure-resourcemanager-datafactory.version>
+        <google-cloud-storage.version>2.18.0</google-cloud-storage.version>
+        <sshd.version>2.8.0</sshd.version>
     </properties>
 
     <dependencyManagement>
@@ -671,6 +673,12 @@
             </dependency>
 
             <dependency>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>google-cloud-storage</artifactId>
+                <version>${google-cloud-storage.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>joda-time</groupId>
                 <artifactId>joda-time</artifactId>
                 <version>${joda-time.version}</version>
@@ -729,6 +737,17 @@
                         <artifactId>jackson-module-scala_2.11</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-sftp</artifactId>
+                <version>${sshd.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-scp</artifactId>
+                <version>${sshd.version}</version>
             </dependency>
 
             <dependency>

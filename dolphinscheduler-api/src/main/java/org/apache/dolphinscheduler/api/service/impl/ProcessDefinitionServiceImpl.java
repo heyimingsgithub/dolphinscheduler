@@ -54,6 +54,7 @@ import org.apache.dolphinscheduler.api.dto.workflow.WorkflowFilterRequest;
 import org.apache.dolphinscheduler.api.dto.workflow.WorkflowUpdateRequest;
 import org.apache.dolphinscheduler.api.enums.Status;
 import org.apache.dolphinscheduler.api.exceptions.ServiceException;
+import org.apache.dolphinscheduler.api.service.MetricsCleanUpService;
 import org.apache.dolphinscheduler.api.service.ProcessDefinitionService;
 import org.apache.dolphinscheduler.api.service.ProcessInstanceService;
 import org.apache.dolphinscheduler.api.service.ProjectService;
@@ -121,6 +122,7 @@ import org.apache.dolphinscheduler.plugin.task.api.enums.TaskTimeoutStrategy;
 import org.apache.dolphinscheduler.plugin.task.api.model.Property;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.ParametersNode;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.SqlParameters;
+import org.apache.dolphinscheduler.service.cron.CronUtils;
 import org.apache.dolphinscheduler.service.model.TaskNode;
 import org.apache.dolphinscheduler.service.process.ProcessService;
 
@@ -251,6 +253,9 @@ public class ProcessDefinitionServiceImpl extends BaseServiceImpl implements Pro
 
     @Autowired
     private WorkFlowLineageService workFlowLineageService;
+
+    @Autowired
+    private MetricsCleanUpService metricsCleanUpService;
 
     /**
      * create process definition
@@ -1033,6 +1038,7 @@ public class ProcessDefinitionServiceImpl extends BaseServiceImpl implements Pro
         for (ProcessDefinition process : processDefinitionList) {
             try {
                 this.deleteProcessDefinitionByCode(loginUser, process.getCode());
+                metricsCleanUpService.cleanUpWorkflowMetricsByDefinitionCode(String.valueOf(process.getCode()));
             } catch (Exception e) {
                 throw new ServiceException(Status.DELETE_PROCESS_DEFINE_ERROR, process.getName(), e.getMessage());
             }
@@ -1117,6 +1123,7 @@ public class ProcessDefinitionServiceImpl extends BaseServiceImpl implements Pro
         // we delete the workflow definition at last to avoid using transaction here.
         // If delete error, we can call this interface again.
         processDefinitionDao.deleteByWorkflowDefinitionCode(processDefinition.getCode());
+        metricsCleanUpService.cleanUpWorkflowMetricsByDefinitionCode(String.valueOf(code));
         log.info("Success delete workflow definition workflowDefinitionCode: {}", code);
     }
 
@@ -1248,7 +1255,7 @@ public class ProcessDefinitionServiceImpl extends BaseServiceImpl implements Pro
         try {
             out = response.getOutputStream();
             buff = new BufferedOutputStream(out);
-            buff.write(JSONUtils.toJsonString(dagDataSchedules).getBytes(StandardCharsets.UTF_8));
+            buff.write(JSONUtils.toPrettyJsonString(dagDataSchedules).getBytes(StandardCharsets.UTF_8));
             buff.flush();
             buff.close();
         } catch (IOException e) {
@@ -2601,7 +2608,7 @@ public class ProcessDefinitionServiceImpl extends BaseServiceImpl implements Pro
             putMsg(result, Status.SCHEDULE_START_TIME_END_TIME_SAME);
             return result;
         }
-        if (!org.quartz.CronExpression.isValidExpression(scheduleObj.getCrontab())) {
+        if (!CronUtils.isValidExpression(scheduleObj.getCrontab())) {
             log.error("CronExpression verify failure, cron:{}.", scheduleObj.getCrontab());
             putMsg(result, Status.REQUEST_PARAMS_NOT_VALID_ERROR, scheduleObj.getCrontab());
             return result;

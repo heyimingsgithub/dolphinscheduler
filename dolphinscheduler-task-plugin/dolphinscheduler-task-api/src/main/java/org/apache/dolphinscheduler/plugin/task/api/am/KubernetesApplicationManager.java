@@ -24,6 +24,8 @@ import org.apache.dolphinscheduler.plugin.task.api.K8sTaskExecutionContext;
 import org.apache.dolphinscheduler.plugin.task.api.TaskException;
 import org.apache.dolphinscheduler.plugin.task.api.enums.TaskExecutionStatus;
 
+import org.apache.commons.collections4.CollectionUtils;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +41,7 @@ import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.LogWatch;
 
 @Slf4j
 @AutoService(ApplicationManager.class)
@@ -168,31 +171,23 @@ public class KubernetesApplicationManager implements ApplicationManager {
     }
 
     /**
-     * collect pod's log
+     * get pod's log watcher
      *
      * @param kubernetesApplicationManagerContext
      * @return
      */
-    public String collectPodLog(KubernetesApplicationManagerContext kubernetesApplicationManagerContext) {
-        try {
-            KubernetesClient client = getClient(kubernetesApplicationManagerContext);
-            FilterWatchListDeletable<Pod, PodList> watchList = getDriverPod(kubernetesApplicationManagerContext);
-            List<Pod> driverPod = watchList.list().getItems();
-            if (!driverPod.isEmpty()) {
-                Pod driver = driverPod.get(0);
-                String driverPodName = driver.getMetadata().getName();
-                String logs = client.pods()
-                        .inNamespace(kubernetesApplicationManagerContext.getK8sTaskExecutionContext().getNamespace())
-                        .withName(driverPodName).getLog();
-
-                // delete driver pod only after successful execution
-                killApplication(kubernetesApplicationManagerContext);
-                return logs;
-            }
-        } catch (Exception e) {
-            log.error("Collect pod log failed:", e.getMessage());
+    public LogWatch getPodLogWatcher(KubernetesApplicationManagerContext kubernetesApplicationManagerContext) {
+        KubernetesClient client = getClient(kubernetesApplicationManagerContext);
+        FilterWatchListDeletable<Pod, PodList> watchList = getDriverPod(kubernetesApplicationManagerContext);
+        List<Pod> driverPod = watchList.list().getItems();
+        if (CollectionUtils.isEmpty(driverPod)) {
+            return null;
         }
-        return "";
+        Pod driver = driverPod.get(0);
+
+        return client.pods().inNamespace(driver.getMetadata().getNamespace())
+                .withName(driver.getMetadata().getName())
+                .watchLog();
     }
 
 }
